@@ -17,15 +17,55 @@ enum class SupportedLanguage(
     GO("Go", "go", listOf("Binary Search", "REST API", "Worker Pool", "HTTP Client", "File I/O")),
     RUST("Rust", "rs", listOf("Binary Search", "Fibonacci", "Thread Pool", "File I/O", "Stack")),
     C_SHARP("C#", "cs", listOf("Binary Search", "Fibonacci", "LRU Cache", "Async Tasks", "File I/O")),
-    TYPESCRIPT("TypeScript", "ts", listOf("Binary Search", "LRU Cache", "Fetch API", "Async Tasks"))
+    TYPESCRIPT("TypeScript", "ts", listOf("Binary Search", "LRU Cache", "Fetch API", "Async Tasks"));
+
+    companion object {
+        fun fromExtension(extension: String): SupportedLanguage? =
+            entries.firstOrNull { it.fileExtension.equals(extension, ignoreCase = true) }
+
+        fun fromName(name: String): SupportedLanguage? =
+            entries.firstOrNull { it.name == name }
+    }
 }
+
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+data class AppSettings(
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val previewJavaScriptEnabled: Boolean = false,
+    val editorFontSizeSp: Int = 13,
+    val editorWordWrap: Boolean = true
+)
+
+data class RecipeParameter(
+    val key: String,
+    val label: String,
+    val defaultValue: String,
+    val validationPattern: String,
+    val helpText: String
+)
+
+data class RecipeInfo(
+    val id: String,
+    val title: String,
+    val explanation: String,
+    val keywords: List<String>,
+    val languages: List<SupportedLanguage>,
+    val dependencies: Map<SupportedLanguage, List<String>> = emptyMap(),
+    val safetyNotes: List<String> = emptyList(),
+    val parameters: List<RecipeParameter> = emptyList()
+)
 
 data class GenerationResult(
     val code: String,
     val intentDetected: String,
     val explanation: String,
     val language: SupportedLanguage,
-    val isTemplateFallback: Boolean = false
+    val isTemplateFallback: Boolean = false,
+    val recipeId: String? = null,
+    val confidence: Float = if (isTemplateFallback) 0.2f else 0.9f,
+    val alternatives: List<String> = emptyList(),
+    val appliedParameters: Map<String, String> = emptyMap()
 )
 
 enum class Severity { ERROR, WARNING, OPTIMIZATION }
@@ -49,5 +89,8 @@ data class SavedSnippet(
     val title: String,
     val language: SupportedLanguage,
     val code: String,
-    val dateAdded: Long = System.currentTimeMillis()
+    val dateAdded: Long = System.currentTimeMillis(),
+    val updatedAt: Long = dateAdded,
+    val tags: List<String> = emptyList(),
+    val favorite: Boolean = false
 )

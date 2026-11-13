@@ -1,96 +1,93 @@
 # Ultimate Code Creator
 
-A native Android code-snippet workbench built with Kotlin and Jetpack Compose. Its core features run on the device without API keys, cloud inference, downloaded language models, or an Internet permission.
+Offline-first Android code snippet workbench built with Kotlin, Jetpack Compose, Room, and a deterministic recipe engine.
+
+> Professional positioning: create, inspect, repair, save, import/export, and preview code snippets offline. Curated recipes are labelled clearly. Unsupported requests produce starters, not fake solutions.
 
 ## What works
 
-- **Offline recipe synthesis:** keyword/intent matching selects bundled examples for algorithms, caches, stacks, trees, file I/O, concurrency, HTTP clients, REST services, SQL, and HTML components.
-- **11 language targets:** Python, HTML/CSS/JavaScript, Java, Kotlin, JavaScript, C++, SQL, Go, Rust, C#, and TypeScript. Recipe coverage varies by language.
-- **Honest fallbacks:** an unsupported request produces a clearly labelled starter in the selected language—not Java or Python code mislabeled as another language.
-- **Tap-to-add keywords, copy, and local bookmarks.** Saved snippets remain after restarting the app; deleting the last snippet does not resurrect the defaults.
-- **Offline structural linting:** comment/string-aware delimiter checks, Python block-header colons, conservative Java/C++/C# semicolon warnings, HTML tag nesting, and embedded CSS/JavaScript block checks. Findings include line numbers. Safe repairs can be loaded back into the editor.
-- **Restricted local HTML preview:** inline HTML/CSS/JavaScript runs in a WebView with no app Internet permission, blocked network requests, disabled file/content access, no native JavaScript bridge, and a restrictive Content Security Policy.
+- **Offline recipe synthesis** for algorithms, caches, stacks, trees, file I/O, concurrency, HTTP clients, REST services, SQL, and HTML components.
+- **11 language targets:** Python, HTML/CSS/JavaScript, Java, Kotlin, JavaScript, C++, SQL, Go, Rust, C#, TypeScript.
+- **Recipe catalog** with keywords, language coverage, dependencies, safety notes, confidence, alternatives, and parameterized LRU capacity (`capacity=10`).
+- **Honest fallbacks:** unsupported requests produce a labelled starter in the selected language.
+- **Editor workflows:** syntax highlighting, undo/redo, find/replace, whitespace cleanup, conservative newline indentation, file open/save/share.
+- **Structural linting:** comment/string-aware delimiter checks, Python header colons and mixed-indentation warnings, conservative Java/C++/C# semicolon warnings, HTML tag nesting, embedded CSS/JS checks, and repair diff review.
+- **Local snippet library:** Room/SQLite storage, search, tags, favorites, rename, duplicate, delete, delete-all, versioned JSON import/export, and legacy migration.
+- **Restricted HTML preview:** no Internet permission, blocked network/file/content access, blocked downloads, JavaScript disabled by default, stop control, and renderer-crash handling.
+- **Settings:** system/light/dark theme, editor font size, word wrap, preview JavaScript toggle.
+- **Tablet/landscape baseline:** navigation rail on wide screens.
 
 ## Important limitations
 
-This is a **deterministic template/recipe engine**, not a general natural-language code generator. It does not understand arbitrary specifications or synthesize novel production-ready applications. Unmatched requests are starting points only.
+This is **not** a general AI code generator, full IDE, compiler, or language server. The linter is heuristic and does not prove correctness or safety. A clean lint result is not a guarantee.
 
-The linter is a **lightweight heuristic checker**, not a full AST parser, compiler, type checker, or language server. It does not verify indentation, types, imports, semantics, regular-expression grammar, macros, or every HTML5 optional-end-tag rule. Its repairs are deliberately conservative; ambiguous mismatches and possible semicolon omissions are left for review. A clean result does not prove that code is correct.
+Generated HTTP/API examples may need dependencies or network access when run elsewhere. The login recipe is a UI demo, not production authentication.
 
-Generated HTTP/API examples may need a network connection and external dependencies **when you run them elsewhere**. The Android app itself does not contact cloud APIs. The login recipe is a UI demo, not an authentication system. Review generated code before using it.
+Tree-sitter native parsing is not bundled yet. The code includes a parser abstraction and an integration plan in [`docs/TREE_SITTER_PLAN.md`](docs/TREE_SITTER_PLAN.md).
 
-The HTML preview is restricted but is not a separate hardened execution sandbox. Untrusted JavaScript can still consume CPU or memory; close the preview if necessary.
-
-Snippets are stored in app-private SharedPreferences. Android cloud backup is disabled, and uninstalling the app removes its local data. There is no account or cloud sync.
-
-## Build and run
+## Build
 
 Requirements:
 
-- Android Studio with Android SDK Platform 34 and Build Tools 34.0.0
 - JDK 17
-- Android 8.0 / API 26 or newer on the device/emulator
-- Internet access for the **first build** to download Gradle, the Android plugin, and dependencies; subsequent builds can use cached tooling
-
-Open this repository's root folder in Android Studio, let Gradle sync, and run the `app` configuration. Or build from a terminal:
+- Android SDK Platform 36 and Build Tools 36.0.0
+- Android 8.0 / API 26 or newer for installation
+- Internet access for the first Gradle/dependency download
 
 ```bash
 ./gradlew testDebugUnitTest lintDebug assembleDebug
 ```
 
-On Windows:
-
-```powershell
-.\gradlew.bat testDebugUnitTest lintDebug assembleDebug
-```
-
-The installable debug APK is written to:
+Debug APK:
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-The GitHub Actions workflow also runs unit tests, Android lint, and a debug build. After a successful run, open **GitHub → Actions → Android build → the latest run → Artifacts → UltimateCodeCreator-debug** to download the APK. APKs and build outputs are intentionally not committed to Git.
+Release builds enable R8 and resource shrinking. Without signing environment variables, CI produces unsigned release artifacts for inspection. For signed releases, see [`docs/RELEASE.md`](docs/RELEASE.md).
 
-This first version uses the supplied compile/target SDK 34. Update and test against current device and app-store requirements before a public production release. Release signing is not configured; the CI artifact is a debug build for testing.
+## CI
 
-## Project layout
+GitHub Actions runs on `main`, `arena/**` working branches, pull requests to `main`, and `v*` tags:
+
+- unit tests;
+- Android lint;
+- debug APK;
+- unsigned release APK/AAB;
+- instrumentation tests on API 26 and API 36 emulators;
+- dependency review on PRs;
+- dependency graph submission on `main`.
+
+Signed release workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml).
+
+## Project structure
 
 ```text
-├── app/
-│   ├── build.gradle.kts
-│   └── src/
-│       ├── main/
-│       │   ├── AndroidManifest.xml
-│       │   ├── java/com/ultimate/codecreator/
-│       │   │   ├── MainActivity.kt
-│       │   │   ├── model/Models.kt
-│       │   │   ├── engine/
-│       │   │   │   ├── OfflineCodeSynthesizer.kt
-│       │   │   │   ├── OfflineCodeLinter.kt
-│       │   │   │   └── PreviewSandbox.kt
-│       │   │   ├── data/SnippetDatabase.kt
-│       │   │   ├── viewmodel/CodeCreatorViewModel.kt
-│       │   │   └── ui/
-│       │   │       ├── theme/
-│       │   │       ├── components/
-│       │   │       └── screens/
-│       │   └── res/
-│       └── test/java/com/ultimate/codecreator/engine/
-├── gradle/wrapper/
-├── gradlew
-├── gradlew.bat
-├── build.gradle.kts
-├── settings.gradle.kts
-└── .github/workflows/android-build.yml
+app/src/main/java/com/ultimate/codecreator/
+├── MainActivity.kt
+├── model/                 # language, recipe, snippet, settings models
+├── engine/                # recipes, linter, highlighter, diff, formatter, preview policy
+│   └── parser/            # parser backend abstraction
+├── data/                  # Room repository, settings, import/export codec, legacy migration
+│   └── local/             # Room entity/DAO/database
+├── viewmodel/             # state and use-cases
+└── ui/                    # Compose theme, components, screens
 ```
 
-## Tests
+## Documentation
 
-JVM unit tests cover every language's quick-word recipes, fallback language correctness, comment/string masking, delimiter and colon repairs, HTML/CSS checks, safe semicolon warnings, and preview policy injection. Run them with:
+- [Capability matrix](docs/CAPABILITIES.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Threat model](docs/THREAT_MODEL.md)
+- [Testing](docs/TESTING.md)
+- [Recipe authoring](docs/RECIPE_AUTHORING.md)
+- [Release guide](docs/RELEASE.md)
+- [Play Store checklist](docs/PLAY_CHECKLIST.md)
+- [Tree-sitter plan](docs/TREE_SITTER_PLAN.md)
+- [Privacy](PRIVACY.md)
+- [Security](SECURITY.md)
+- [Changelog](CHANGELOG.md)
 
-```bash
-./gradlew testDebugUnitTest
-```
+## License
 
-Before release, also test rotation, keyboard resizing, copy/save/delete, airplane-mode operation, and WebView previews on a physical Android device. CI compilation is not a substitute for device testing.
+Apache-2.0. See [LICENSE](LICENSE).
