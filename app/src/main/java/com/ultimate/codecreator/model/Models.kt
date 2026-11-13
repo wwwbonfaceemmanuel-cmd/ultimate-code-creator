@@ -30,11 +30,26 @@ enum class SupportedLanguage(
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/**
+ * How code generation is sourced.
+ * - AUTO: the app decides. Confident bundled recipes stay offline; novel requests
+ *   use cloud AI only when a provider is configured and the device is online,
+ *   falling back to offline on any failure.
+ * - OFFLINE: always use the on-device recipe engine. No network is used.
+ * - CLOUD: always use the configured cloud provider; surface an error if it is
+ *   unavailable rather than silently substituting a recipe.
+ */
+enum class GenerationMode { AUTO, OFFLINE, CLOUD }
+
+/** Where a generation result actually came from, for honest labelling in the UI. */
+enum class GenerationSource { OFFLINE_RECIPE, OFFLINE_FALLBACK, CLOUD_AI }
+
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val previewJavaScriptEnabled: Boolean = false,
     val editorFontSizeSp: Int = 13,
-    val editorWordWrap: Boolean = true
+    val editorWordWrap: Boolean = true,
+    val generationMode: GenerationMode = GenerationMode.AUTO
 )
 
 data class RecipeParameter(
@@ -65,7 +80,9 @@ data class GenerationResult(
     val recipeId: String? = null,
     val confidence: Float = if (isTemplateFallback) 0.2f else 0.9f,
     val alternatives: List<String> = emptyList(),
-    val appliedParameters: Map<String, String> = emptyMap()
+    val appliedParameters: Map<String, String> = emptyMap(),
+    val source: GenerationSource = if (isTemplateFallback) GenerationSource.OFFLINE_FALLBACK else GenerationSource.OFFLINE_RECIPE,
+    val model: String? = null
 )
 
 enum class Severity { ERROR, WARNING, OPTIMIZATION }

@@ -11,10 +11,10 @@
 ## Policy and privacy
 
 - [ ] Privacy policy URL published.
-- [ ] Data Safety form matches actual behavior: no network permission, local-only data by default.
+- [ ] Data Safety form matches actual behavior: local-only by default; if cloud AI is enabled, declare that user instructions are sent to a third-party provider.
 - [ ] No analytics/crash SDK added without review.
 - [ ] Export/share behavior documented.
-- [ ] Permissions reviewed: no Internet permission.
+- [ ] Permissions reviewed: INTERNET and ACCESS_NETWORK_STATE are used only for opt-in cloud AI.
 
 ## Store listing
 

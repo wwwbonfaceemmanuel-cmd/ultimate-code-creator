@@ -4,6 +4,7 @@
 
 - user snippets and tags;
 - local settings;
+- the cloud API key (encrypted at rest with the Android Keystore);
 - app integrity;
 - device resources (CPU/memory/battery);
 - user trust in generated code.
@@ -32,6 +33,13 @@
    - Exported packs are plain JSON and may contain secrets.
    - Temporary share files are app-cache files exposed through FileProvider with read-only grant.
 
+5. **Cloud AI generation → remote provider**
+   - Opt-in only. Offline mode sends nothing; Auto contacts a provider only when one is configured and the device is online.
+   - Only the instruction and target language are sent, over HTTPS, to the user-configured endpoint. Cleartext is disabled.
+   - The API key is encrypted with a non-exportable Android Keystore key (AES/GCM); it is used only for the Authorization header and is never logged, exported, or included in snippet packs.
+   - Cloud output is untrusted, labelled as AI, and must be reviewed. It is never auto-executed.
+   - The provider sees the prompt; users must trust their chosen provider and avoid sending secrets in instructions.
+
 ## Out of scope
 
 - Protecting against a compromised Android OS.
@@ -41,7 +49,8 @@
 
 ## Security requirements for future changes
 
-- Do not add Internet permission without a privacy review.
+- Internet permission exists only for opt-in cloud AI; keep core features working offline and keep cloud disabled until configured.
+- Never log or export the cloud API key; keep it in Keystore-backed encrypted storage.
 - Do not add JavaScript bridges without explicit keep rules and security review.
 - Do not log snippet contents by default.
 - Keep preview JavaScript opt-in.

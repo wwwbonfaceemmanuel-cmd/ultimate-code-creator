@@ -56,8 +56,7 @@ Possible semicolon issues are warnings and are not blindly inserted.
 
 The WebView:
 
-- has no app Internet permission;
-- blocks non-local network requests;
+- blocks non-local network requests via interception and a strict CSP (the app Internet permission is only for opt-in cloud AI, not the preview);
 - disables file/content access, downloads, popups, geolocation, and DOM storage;
 - exposes no JavaScript bridge;
 - disables JavaScript by default;

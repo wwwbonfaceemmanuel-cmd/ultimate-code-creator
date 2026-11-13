@@ -3,6 +3,9 @@
 | Capability | Status | Notes |
 |---|---:|---|
 | Offline recipe generation | Implemented | Deterministic keyword/recipe matching, not AI. |
+| Cloud AI generation | Implemented | Opt-in, bring-your-own-key, OpenAI-compatible endpoints (OpenAI/OpenRouter/Groq/custom). |
+| Generation mode selection | Implemented | Auto / Offline / Cloud. Auto keeps confident recipes offline and uses cloud for novel requests, falling back to offline on failure. |
+| Secure API key storage | Implemented | Android Keystore AES/GCM; key never exported or logged. |
 | 11 language targets | Implemented | Recipe coverage varies by language. |
 | Honest starter fallback | Implemented | Never mislabels another language as the selected one. |
 | Recipe catalog | Implemented | Metadata, dependencies, safety notes, parameters. |
@@ -24,4 +27,4 @@
 | Signed release pipeline | Scaffolded | Requires your keystore/secrets and Play Console setup. |
 | Store listing/assets | Manual | Screenshots, feature graphic, policy review required. |
 | Analytics/crash reporting | Not included | Offline-first; add only with privacy review and consent. |
-| Local/cloud AI model | Not included | Optional future work; must be transparent and consent-based. |
+| On-device AI model | Not included | No large model is downloaded; cloud AI uses a remote provider only. |

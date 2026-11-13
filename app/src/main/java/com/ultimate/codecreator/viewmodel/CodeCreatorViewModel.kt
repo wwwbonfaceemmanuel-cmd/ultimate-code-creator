@@ -6,16 +6,25 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.ultimate.codecreator.data.CloudSettingsStore
+import com.ultimate.codecreator.data.KeystoreSecretStore
 import com.ultimate.codecreator.data.PreferencesSettingsStore
+import com.ultimate.codecreator.data.PrefsCloudSettingsStore
 import com.ultimate.codecreator.data.RoomSnippetRepository
 import com.ultimate.codecreator.data.SettingsStore
 import com.ultimate.codecreator.data.SnippetPackCodec
 import com.ultimate.codecreator.data.SnippetStore
 import com.ultimate.codecreator.data.local.AppDatabase
+import com.ultimate.codecreator.engine.AndroidNetworkMonitor
+import com.ultimate.codecreator.engine.GenerationCoordinator
+import com.ultimate.codecreator.engine.OfflineCodeGenerator
 import com.ultimate.codecreator.engine.OfflineCodeLinter
-import com.ultimate.codecreator.engine.OfflineCodeSynthesizer
+import com.ultimate.codecreator.engine.OpenAiCloudGenerator
 import com.ultimate.codecreator.model.AppSettings
+import com.ultimate.codecreator.model.CloudConfig
+import com.ultimate.codecreator.model.CloudGenerationException
 import com.ultimate.codecreator.model.DebugResult
+import com.ultimate.codecreator.model.GenerationMode
 import com.ultimate.codecreator.model.GenerationResult
 import com.ultimate.codecreator.model.SavedSnippet
 import com.ultimate.codecreator.model.SupportedLanguage
@@ -31,12 +40,16 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CodeCreatorViewModel(
     private val store: SnippetStore,
     private val settingsStore: SettingsStore,
+    private val cloudSettings: CloudSettingsStore,
+    private val coordinator: GenerationCoordinator,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : ViewModel() {
@@ -50,9 +63,25 @@ class CodeCreatorViewModel(
                 val database = AppDatabase.get(appContext)
                 val legacyPrefs = appContext.getSharedPreferences("offline_snippet_store", Context.MODE_PRIVATE)
                 val settingsPrefs = appContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                val cloudPrefs = appContext.getSharedPreferences("cloud_settings", Context.MODE_PRIVATE)
+                val cloudSettings = PrefsCloudSettingsStore(cloudPrefs, KeystoreSecretStore(appContext))
+                val httpClient = OkHttpClient.Builder()
+                    .connectTimeout(15, TimeUnit.SECONDS)
+                    .readTimeout(60, TimeUnit.SECONDS)
+                    .writeTimeout(30, TimeUnit.SECONDS)
+                    .callTimeout(90, TimeUnit.SECONDS)
+                    .build()
+                val coordinator = GenerationCoordinator(
+                    offline = OfflineCodeGenerator(),
+                    cloud = OpenAiCloudGenerator(httpClient),
+                    cloudSettings = cloudSettings,
+                    network = AndroidNetworkMonitor(appContext)
+                )
                 CodeCreatorViewModel(
                     store = RoomSnippetRepository(database.snippetDao(), legacyPrefs),
-                    settingsStore = PreferencesSettingsStore(settingsPrefs)
+                    settingsStore = PreferencesSettingsStore(settingsPrefs),
+                    cloudSettings = cloudSettings,
+                    coordinator = coordinator
                 )
             }
         }
@@ -66,6 +95,8 @@ class CodeCreatorViewModel(
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
     private val _isDebugging = MutableStateFlow(false)
     val isDebugging: StateFlow<Boolean> = _isDebugging.asStateFlow()
+    private val _isTestingCloud = MutableStateFlow(false)
+    val isTestingCloud: StateFlow<Boolean> = _isTestingCloud.asStateFlow()
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
     private val _snippetQuery = MutableStateFlow("")
@@ -73,6 +104,9 @@ class CodeCreatorViewModel(
 
     val settings: StateFlow<AppSettings> = settingsStore.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
+
+    val cloudConfig: StateFlow<CloudConfig> = cloudSettings.config
+        .stateIn(viewModelScope, SharingStarted.Eagerly, CloudConfig())
 
     val snippets: StateFlow<List<SavedSnippet>> = _snippetQuery
         .flatMapLatest { store.observeSnippets(it) }
@@ -93,24 +127,95 @@ class CodeCreatorViewModel(
     fun consumeMessage() { _message.value = null }
     fun clearDebugResult() { _debugResult.value = null }
 
+    /** Mode-aware generation: the coordinator chooses offline vs cloud per settings. */
+    fun generateCode(prompt: String, language: SupportedLanguage) {
+        runGeneration(prompt, language, settings.value.generationMode, ioDispatcher)
+    }
+
+    /** Forces the on-device engine regardless of the selected mode. */
     fun generateCodeOffline(prompt: String, language: SupportedLanguage) {
+        runGeneration(prompt, language, GenerationMode.OFFLINE, defaultDispatcher)
+    }
+
+    private fun runGeneration(prompt: String, language: SupportedLanguage, mode: GenerationMode, dispatcher: CoroutineDispatcher) {
         if (prompt.isBlank()) {
             _message.value = "Enter an instruction or tap a keyword first."
             return
         }
         if (_isGenerating.value) return
         _isGenerating.value = true
-        viewModelScope.launch(defaultDispatcher) {
+        viewModelScope.launch(dispatcher) {
             try {
-                _generationResult.value = OfflineCodeSynthesizer.synthesize(prompt, language)
+                _generationResult.value = coordinator.generate(prompt, language, mode)
             } catch (exception: CancellationException) {
                 throw exception
+            } catch (exception: CloudGenerationException) {
+                _message.value = exception.message ?: "Cloud generation failed."
             } catch (exception: IllegalArgumentException) {
                 _message.value = exception.message ?: "Invalid instruction."
             } catch (_: Exception) {
-                _message.value = "Could not generate this snippet. Try a shorter instruction."
+                _message.value = "Could not generate this snippet. Try a shorter instruction or Offline mode."
             } finally {
                 _isGenerating.value = false
+            }
+        }
+    }
+
+    fun setGenerationMode(mode: GenerationMode) {
+        updateSettings { it.copy(generationMode = mode) }
+    }
+
+    fun updateCloudEndpoint(providerLabel: String, baseUrl: String, model: String) {
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                cloudSettings.updateEndpoint(providerLabel, baseUrl, model)
+                _message.value = "Cloud endpoint saved."
+            } catch (exception: IllegalArgumentException) {
+                _message.value = exception.message ?: "Invalid cloud endpoint."
+            } catch (_: Exception) {
+                _message.value = "Could not save the cloud endpoint."
+            }
+        }
+    }
+
+    fun setApiKey(apiKey: String) {
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                cloudSettings.setApiKey(apiKey)
+                _message.value = "API key saved securely on this device."
+            } catch (exception: IllegalArgumentException) {
+                _message.value = exception.message ?: "Invalid API key."
+            } catch (_: Exception) {
+                _message.value = "Could not save the API key."
+            }
+        }
+    }
+
+    fun clearApiKey() {
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                cloudSettings.clearApiKey()
+                _message.value = "API key removed from this device."
+            } catch (_: Exception) {
+                _message.value = "Could not remove the API key."
+            }
+        }
+    }
+
+    fun testCloudConnection() {
+        if (_isTestingCloud.value) return
+        _isTestingCloud.value = true
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                _message.value = coordinator.testConnection()
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: CloudGenerationException) {
+                _message.value = exception.message ?: "Cloud connection test failed."
+            } catch (_: Exception) {
+                _message.value = "Cloud connection test failed."
+            } finally {
+                _isTestingCloud.value = false
             }
         }
     }

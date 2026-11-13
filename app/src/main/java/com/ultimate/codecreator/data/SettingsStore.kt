@@ -2,6 +2,7 @@ package com.ultimate.codecreator.data
 
 import android.content.SharedPreferences
 import com.ultimate.codecreator.model.AppSettings
+import com.ultimate.codecreator.model.GenerationMode
 import com.ultimate.codecreator.model.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +25,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             .putBoolean(KEY_PREVIEW_JS, updated.previewJavaScriptEnabled)
             .putInt(KEY_FONT_SIZE, updated.editorFontSizeSp)
             .putBoolean(KEY_WORD_WRAP, updated.editorWordWrap)
+            .putString(KEY_GENERATION_MODE, updated.generationMode.name)
             .apply()
     }
 
@@ -31,7 +33,8 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
         themeMode = runCatching { ThemeMode.valueOf(prefs.getString(KEY_THEME, ThemeMode.SYSTEM.name)!!) }.getOrDefault(ThemeMode.SYSTEM),
         previewJavaScriptEnabled = prefs.getBoolean(KEY_PREVIEW_JS, false),
         editorFontSizeSp = prefs.getInt(KEY_FONT_SIZE, 13),
-        editorWordWrap = prefs.getBoolean(KEY_WORD_WRAP, true)
+        editorWordWrap = prefs.getBoolean(KEY_WORD_WRAP, true),
+        generationMode = runCatching { GenerationMode.valueOf(prefs.getString(KEY_GENERATION_MODE, GenerationMode.AUTO.name)!!) }.getOrDefault(GenerationMode.AUTO)
     ).validated()
 
     private fun AppSettings.validated() = copy(editorFontSizeSp = editorFontSizeSp.coerceIn(10, 22))
@@ -41,5 +44,6 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
         private const val KEY_PREVIEW_JS = "preview_js_enabled"
         private const val KEY_FONT_SIZE = "editor_font_size"
         private const val KEY_WORD_WRAP = "editor_word_wrap"
+        private const val KEY_GENERATION_MODE = "generation_mode"
     }
 }

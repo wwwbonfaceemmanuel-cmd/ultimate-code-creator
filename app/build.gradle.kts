@@ -9,10 +9,10 @@ plugins {
 
 val versionNameOverride = (project.findProperty("versionNameOverride") as String?)
     ?: System.getenv("VERSION_NAME")
-    ?: "0.2.0"
+    ?: "0.3.0"
 val versionCodeOverride = (project.findProperty("versionCodeOverride") as String?)?.toIntOrNull()
     ?: System.getenv("VERSION_CODE")?.toIntOrNull()
-    ?: 2
+    ?: 3
 
 android {
     namespace = "com.ultimate.codecreator"
@@ -91,10 +91,12 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+    implementation(libs.okhttp)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.org.json)
+    testImplementation(libs.okhttp.mockwebserver)
 
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.core)

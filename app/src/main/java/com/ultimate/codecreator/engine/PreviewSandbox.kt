@@ -1,7 +1,8 @@
 package com.ultimate.codecreator.engine
 
-/** Defense in depth alongside the manifest's missing INTERNET permission and
- * the WebView's network interception. No JavaScript bridge is exposed.
+/** Defense in depth alongside the WebView's network interception and this strict
+ * CSP (connect-src 'none'). The app's Internet permission is used only for opt-in
+ * cloud AI generation, never by the preview. No JavaScript bridge is exposed.
  */
 object PreviewSandbox {
     private const val POLICY = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'"
