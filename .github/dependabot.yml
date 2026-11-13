@@ -16,3 +16,11 @@ updates:
       # be auto-proposed as isolated changes. Minor/patch updates still flow.
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # Kotlin and KSP are a version-locked compiler pair (KSP also enforces a
+      # minimum AGP). Even a "minor" KSP/Kotlin bump breaks the build unless the
+      # whole toolchain moves together, so leave these to a manual migration.
+      # Match both the version-catalog ref names and the plugin ids.
+      - dependency-name: "kotlin"
+      - dependency-name: "org.jetbrains.kotlin*"
+      - dependency-name: "ksp"
+      - dependency-name: "com.google.devtools.ksp*"
