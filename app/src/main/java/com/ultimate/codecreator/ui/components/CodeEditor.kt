@@ -6,6 +6,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -46,22 +47,27 @@ fun CodeEditor(
             TransformedText(highlightedCode(text.toString(), language, colors), OffsetMapping.Identity)
         }
     }
-    val scrollModifier = if (wordWrap) Modifier else Modifier.horizontalScroll(rememberScrollState())
+    val longestLine = remember(value.text) { value.text.lineSequence().maxOfOrNull { it.length } ?: 0 }
+    val noWrapWidth = (longestLine * fontSizeSp * 0.62f + 48).dp.coerceAtLeast(320.dp)
+    val layoutModifier = if (wordWrap) {
+        Modifier.fillMaxWidth()
+    } else {
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).width(noWrapWidth)
+    }
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
         textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = fontSizeSp.sp, lineHeight = (fontSizeSp + 5).sp, color = colors.text),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
         visualTransformation = transformation,
         singleLine = false,
         maxLines = Int.MAX_VALUE,
         modifier = modifier
-            .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(colors.background)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
-            .then(scrollModifier)
+            .then(layoutModifier)
             .padding(12.dp),
         decorationBox = { innerTextField ->
             Box {
