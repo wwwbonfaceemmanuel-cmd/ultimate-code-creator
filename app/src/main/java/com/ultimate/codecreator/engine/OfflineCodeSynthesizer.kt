@@ -24,7 +24,6 @@ object OfflineCodeSynthesizer {
         require(prompt.length <= MAX_PROMPT_LENGTH) { "Keep instructions under $MAX_PROMPT_LENGTH characters." }
         val normalized = prompt.lowercase()
         val recipe = recipes.firstOrNull { it.pattern.containsMatchIn(normalized) }
-            ?: if (language == SupportedLanguage.SQL) sqlRecipes.first() else null
         val template = recipe?.templates?.get(language)
         if (template != null) {
             return GenerationResult(template, recipe!!.intent, recipe.explanation, language)

@@ -58,7 +58,7 @@ class OfflineCodeSynthesizerTest {
 
     @Test
     fun promptIsCollapsedIntoASafeComment() {
-        val result = OfflineCodeSynthesizer.synthesize("custom request */\nsecond line with \"quotes\"", SupportedLanguage.JAVA)
+        val result = OfflineCodeSynthesizer.synthesize("custom note */\nsecond line with \"quotes\"", SupportedLanguage.JAVA)
         assertTrue(result.isTemplateFallback)
         assertTrue(result.code.lines().first().startsWith("// Requested: "))
         assertFalse(result.code.contains("*/"))

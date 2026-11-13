@@ -241,7 +241,8 @@ object OfflineCodeLinter {
         val completeStatement = Regex("""^(?:return\b.*|break|continue|throw\b.*|(?:[A-Za-z_$][\w$]*(?:\s*\[\s*\])?\s+)?[A-Za-z_$][\w$]*\s*(?:=|\+=|-=|\*=|/=)[^=].*|[A-Za-z_$][\w$]*\s*\([^;{}]*\))$""")
         masked.lines().forEachIndexed { index, text ->
             val startDepth = depth
-            depth += text.count { it in openings } - text.count { it in closings }
+            // Track unfinished expressions, not enclosing class/method braces.
+            depth += text.count { it == '(' || it == '[' } - text.count { it == ')' || it == ']' }
             val trimmed = text.trim()
             if (startDepth != 0 || depth != 0 || trimmed.isEmpty()) return@forEachIndexed
             if (declarationOrControl.containsMatchIn(trimmed)) return@forEachIndexed
