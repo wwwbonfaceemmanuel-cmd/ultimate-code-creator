@@ -1,0 +1,28 @@
+# Android / Gradle
+.gradle/
+build/
+app/build/
+local.properties
+.cxx/
+.externalNativeBuild/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# IDE
+.idea/
+*.iml
+captures/
+
+# Signing material and local secrets
+*.jks
+*.keystore
+keystore.properties
+.env
+.env.*
+
+# OS / editors
+.DS_Store
+Thumbs.db
+*.swp
