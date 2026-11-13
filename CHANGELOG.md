@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 — Optional cloud AI generation
+
+### Added
+- Hybrid generation with three modes: **Auto**, **Offline**, and **Cloud AI**. Auto keeps confident bundled recipes offline and uses cloud AI for novel requests when a provider is configured and the device is online, falling back to offline on any failure.
+- Bring-your-own-key cloud generation via OpenAI-compatible chat-completions endpoints (OpenAI, OpenRouter, Groq, or custom). Provider presets, base URL/model fields, connection test, and clear result-source labelling (offline recipe / starter / AI model).
+- Secure API key storage using a non-exportable Android Keystore key (AES/GCM). The key is never exported, logged, or included in snippet packs.
+- Cloud provider settings panel and a generation-mode selector on the Generate screen.
+- Tests: generation routing (Auto/Offline/CLOUD, fallback, offline/no-network), cloud client request/response and error handling via MockWebServer, cloud config validation, and a Keystore round-trip instrumentation test.
+
+### Changed
+- Added INTERNET and ACCESS_NETWORK_STATE permissions for optional cloud AI only; core features remain fully offline and cloud is off until configured.
+- Updated privacy policy, threat model, and capability matrix to describe the optional cloud data flow.
+
+### Known limitations
+- Cloud output is AI-generated and unverified; it is labelled and must be reviewed. Offline recipes remain deterministic, not AI.
+- No on-device model is downloaded; cloud AI requires a network connection and your own provider key.
+- Store release still requires declaring the cloud data flow in the Play Data Safety form, plus your signing keys.
+
 ## 0.2.0 — Professional baseline
 
 ### Added

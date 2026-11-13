@@ -8,7 +8,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.OfflineBolt
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,13 +21,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.ultimate.codecreator.R
 import com.ultimate.codecreator.engine.OfflineCodeSynthesizer
+import com.ultimate.codecreator.model.GenerationMode
+import com.ultimate.codecreator.model.GenerationSource
 import com.ultimate.codecreator.model.SupportedLanguage
 import com.ultimate.codecreator.ui.components.CodeViewer
+import com.ultimate.codecreator.ui.components.GenerationModeSelector
 import com.ultimate.codecreator.ui.components.HtmlPreviewDialog
 import com.ultimate.codecreator.ui.components.LanguageChips
 import com.ultimate.codecreator.ui.components.RecipeCatalogDialog
 import com.ultimate.codecreator.ui.components.SnippetMetadataDialog
 import com.ultimate.codecreator.ui.theme.AmberAccent
+import com.ultimate.codecreator.ui.theme.CyanAccent
 import com.ultimate.codecreator.ui.theme.GreenAccent
 import com.ultimate.codecreator.viewmodel.CodeCreatorViewModel
 
@@ -44,6 +47,7 @@ fun GenerateScreen(viewModel: CodeCreatorViewModel) {
     val busy by viewModel.isGenerating.collectAsState()
     val message by viewModel.message.collectAsState()
     val settings by viewModel.settings.collectAsState()
+    val cloudConfig by viewModel.cloudConfig.collectAsState()
 
     LaunchedEffect(message) {
         message?.let {
@@ -53,12 +57,14 @@ fun GenerateScreen(viewModel: CodeCreatorViewModel) {
     }
 
     Column(modifier = Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.OfflineBolt, contentDescription = null, tint = GreenAccent, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.offline_badge), color = GreenAccent, style = MaterialTheme.typography.labelMedium)
+        Text(stringResource(R.string.generation_mode_title), style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(6.dp))
+        GenerationModeSelector(selected = settings.generationMode, onSelected = { viewModel.setGenerationMode(it) })
+        if (settings.generationMode == GenerationMode.CLOUD && !cloudConfig.isConfigured) {
+            Spacer(Modifier.height(8.dp))
+            Text(stringResource(R.string.cloud_not_configured_hint), color = AmberAccent, style = MaterialTheme.typography.bodySmall)
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         Text(stringResource(R.string.generate_helper), style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(14.dp))
         LanguageChips(selectedLanguage, onSelected = { selectedLanguage = it })
@@ -91,7 +97,7 @@ fun GenerateScreen(viewModel: CodeCreatorViewModel) {
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(12.dp))
-        Button(onClick = { viewModel.generateCodeOffline(prompt, selectedLanguage) }, enabled = !busy && prompt.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { viewModel.generateCode(prompt, selectedLanguage) }, enabled = !busy && prompt.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.PlayArrow, contentDescription = null)
             Spacer(Modifier.width(6.dp))
             Text(if (busy) stringResource(R.string.generating) else stringResource(R.string.generate_button, selectedLanguage.displayName))
@@ -102,12 +108,20 @@ fun GenerateScreen(viewModel: CodeCreatorViewModel) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f).semantics { heading() }) {
                     Text(generated.intentDetected, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                    Text(
-                        if (generated.isTemplateFallback) stringResource(R.string.starter_label) else stringResource(R.string.recipe_label),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (generated.isTemplateFallback) AmberAccent else GreenAccent
-                    )
-                    Text(stringResource(R.string.confidence_label, (generated.confidence * 100).toInt()), style = MaterialTheme.typography.labelSmall)
+                    val sourceLabel = when (generated.source) {
+                        GenerationSource.OFFLINE_RECIPE -> stringResource(R.string.source_offline_recipe)
+                        GenerationSource.OFFLINE_FALLBACK -> stringResource(R.string.source_offline_fallback)
+                        GenerationSource.CLOUD_AI -> stringResource(R.string.source_cloud_ai, generated.model ?: "AI")
+                    }
+                    val sourceColor = when (generated.source) {
+                        GenerationSource.CLOUD_AI -> CyanAccent
+                        GenerationSource.OFFLINE_FALLBACK -> AmberAccent
+                        GenerationSource.OFFLINE_RECIPE -> GreenAccent
+                    }
+                    Text(sourceLabel, style = MaterialTheme.typography.labelSmall, color = sourceColor)
+                    if (generated.source != GenerationSource.CLOUD_AI) {
+                        Text(stringResource(R.string.confidence_label, (generated.confidence * 100).toInt()), style = MaterialTheme.typography.labelSmall)
+                    }
                 }
                 IconButton(onClick = { showSaveDialog = true }) {
                     Icon(Icons.Default.Bookmark, contentDescription = stringResource(R.string.save_snippet))

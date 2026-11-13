@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.ultimate.codecreator.BuildConfig
 import com.ultimate.codecreator.R
 import com.ultimate.codecreator.model.ThemeMode
+import com.ultimate.codecreator.ui.components.CloudProviderSettings
 import com.ultimate.codecreator.viewmodel.CodeCreatorViewModel
 
 @Composable
@@ -54,6 +55,12 @@ fun SettingsScreen(viewModel: CodeCreatorViewModel) {
             Text(stringResource(R.string.word_wrap), modifier = Modifier.weight(1f))
             Switch(checked = settings.editorWordWrap, onCheckedChange = { wrap -> viewModel.updateSettings { it.copy(editorWordWrap = wrap) } })
         }
+        Spacer(Modifier.height(20.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(16.dp))
+        CloudProviderSettings(viewModel)
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider()
         Spacer(Modifier.height(16.dp))
         Text(stringResource(R.string.data_title), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.data_body), style = MaterialTheme.typography.bodyMedium)

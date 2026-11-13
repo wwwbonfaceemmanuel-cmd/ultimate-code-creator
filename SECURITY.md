@@ -13,8 +13,9 @@ Include:
 
 ## Security model
 
-- The app requests no Internet permission.
-- HTML preview blocks network requests, file/content access, downloads, popups, and native JavaScript bridges.
+- Internet permission is used only for opt-in cloud AI generation; core features work fully offline and cloud is off until configured.
+- The cloud API key is encrypted at rest with a non-exportable Android Keystore key (AES/GCM) and is never logged or exported.
+- HTML preview blocks network requests (via WebView interception and a strict CSP), file/content access, downloads, popups, and native JavaScript bridges.
 - JavaScript in preview is disabled by default and must be explicitly enabled for trusted HTML.
 - Snippets are stored in app-private storage. Exported packs are plain JSON and are not encrypted.
 - The linter is heuristic and does not prove code safe or correct.

@@ -1,25 +1,42 @@
 # Ultimate Code Creator
 
-Offline-first Android code snippet workbench built with Kotlin, Jetpack Compose, Room, and a deterministic recipe engine.
+Offline-first Android code snippet workbench built with Kotlin, Jetpack Compose, and Room, with a deterministic on-device recipe engine and **optional cloud AI generation**.
 
-> Professional positioning: create, inspect, repair, save, import/export, and preview code snippets offline. Curated recipes are labelled clearly. Unsupported requests produce starters, not fake solutions.
+> Professional positioning: create, inspect, repair, save, import/export, and preview code snippets. Works fully offline; cloud AI is opt-in with your own provider key. Curated recipes are labelled clearly, AI output is labelled as AI, and unsupported offline requests produce starters, not fake solutions.
+
+## Generation modes
+
+The app chooses where code comes from based on the mode you pick on the Generate screen:
+
+- **Auto** (default): confident bundled recipes stay offline (fast and private). Novel requests use cloud AI only when you have configured a provider and you are online, and fall back to the offline result if the cloud call fails. With no provider configured, Auto behaves exactly like Offline.
+- **Offline**: only the on-device recipe engine is used. No network.
+- **Cloud AI**: always uses your configured provider; surfaces a clear error if it is unavailable.
+
+### Cloud AI (optional, bring your own key)
+
+Configure a provider in **Settings → AI & Cloud**: pick a preset (OpenAI, OpenRouter, Groq, or Custom), set the base URL and model, and paste your API key. Any OpenAI-compatible `/chat/completions` endpoint works.
+
+- The API key is encrypted with a non-exportable Android Keystore key (AES/GCM). It is never exported, logged, or included in snippet packs.
+- Only your instruction and target language are sent, over HTTPS, to the provider you choose. The developer receives nothing.
+- Cloud output is AI-generated and unverified — review it before use.
 
 ## What works
 
 - **Offline recipe synthesis** for algorithms, caches, stacks, trees, file I/O, concurrency, HTTP clients, REST services, SQL, and HTML components.
+- **Optional cloud AI generation** with Auto/Offline/Cloud modes, bring-your-own-key OpenAI-compatible providers, and Keystore-encrypted key storage.
 - **11 language targets:** Python, HTML/CSS/JavaScript, Java, Kotlin, JavaScript, C++, SQL, Go, Rust, C#, TypeScript.
 - **Recipe catalog** with keywords, language coverage, dependencies, safety notes, confidence, alternatives, and parameterized LRU capacity (`capacity=10`).
 - **Honest fallbacks:** unsupported requests produce a labelled starter in the selected language.
 - **Editor workflows:** syntax highlighting, undo/redo, find/replace, whitespace cleanup, conservative newline indentation, file open/save/share.
 - **Structural linting:** comment/string-aware delimiter checks, Python header colons and mixed-indentation warnings, conservative Java/C++/C# semicolon warnings, HTML tag nesting, embedded CSS/JS checks, and repair diff review.
 - **Local snippet library:** Room/SQLite storage, search, tags, favorites, rename, duplicate, delete, delete-all, versioned JSON import/export, and legacy migration.
-- **Restricted HTML preview:** no Internet permission, blocked network/file/content access, blocked downloads, JavaScript disabled by default, stop control, and renderer-crash handling.
+- **Restricted HTML preview:** network blocked in the WebView (interception + strict CSP), blocked file/content access and downloads, JavaScript disabled by default, stop control, and renderer-crash handling.
 - **Settings:** system/light/dark theme, editor font size, word wrap, preview JavaScript toggle.
 - **Tablet/landscape baseline:** navigation rail on wide screens.
 
 ## Important limitations
 
-This is **not** a general AI code generator, full IDE, compiler, or language server. The linter is heuristic and does not prove correctness or safety. A clean lint result is not a guarantee.
+The offline engine is deterministic recipe matching, not AI. Optional cloud AI uses a remote provider and its output is unverified. This is **not** a full IDE, compiler, or language server. The linter is heuristic and does not prove correctness or safety. A clean lint result is not a guarantee.
 
 Generated HTTP/API examples may need dependencies or network access when run elsewhere. The login recipe is a UI demo, not production authentication.
 

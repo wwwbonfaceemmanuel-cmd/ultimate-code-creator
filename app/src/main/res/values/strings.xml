@@ -6,15 +6,12 @@
     <string name="nav_saved">Saved</string>
     <string name="nav_settings">Settings</string>
 
-    <string name="offline_badge">Offline recipes · No API keys</string>
     <string name="generate_helper">Choose a bundled recipe, or get a clearly labelled starter in your language.</string>
     <string name="tap_to_add_keyword">Tap to add a keyword</string>
     <string name="instruction_label">Instruction or concept</string>
     <string name="instruction_placeholder">e.g. binary search, login form, LRU cache capacity=10</string>
     <string name="generate_button">Generate %1$s code</string>
     <string name="generating">Generating…</string>
-    <string name="starter_label">Starter template · not a custom solution</string>
-    <string name="recipe_label">Bundled recipe · review before use</string>
     <string name="confidence_label">Match confidence: %1$d%%</string>
     <string name="alternatives_label">Other possible matches</string>
     <string name="applied_parameters_label">Parameters: %1$s</string>
@@ -101,7 +98,7 @@
     <string name="delete_all">Delete all snippets</string>
     <string name="delete_all_confirm">Delete every saved snippet? This cannot be undone unless you have an exported pack.</string>
     <string name="about_title">About</string>
-    <string name="about_body">Offline-first code snippet workbench. Curated recipes are labelled clearly; unsupported requests produce starters. The linter is heuristic, not a compiler.</string>
+    <string name="about_body">Offline-first code snippet workbench with optional cloud AI. Curated recipes are labelled clearly; unsupported requests produce starters. Cloud AI is opt-in with your own provider key. The linter is heuristic, not a compiler.</string>
     <string name="version_label">Version %1$s</string>
 
     <string name="preview_title">Offline web preview</string>
@@ -110,4 +107,35 @@
     <string name="stop_preview">Stop preview</string>
     <string name="preview_stopped">Preview stopped.</string>
     <string name="renderer_crashed">Preview renderer stopped unexpectedly. Close and reopen the preview.</string>
+
+    <!-- Generation modes and sources -->
+    <string name="generation_mode_title">Generation mode</string>
+    <string name="mode_auto">Auto</string>
+    <string name="mode_offline">Offline</string>
+    <string name="mode_cloud">Cloud AI</string>
+    <string name="mode_auto_helper">Auto: bundled recipes stay offline; new requests use cloud AI when a provider is configured and you are online.</string>
+    <string name="mode_offline_helper">Offline: only the on-device recipe engine is used. No network.</string>
+    <string name="mode_cloud_helper">Cloud AI: always use your configured provider. Needs a provider, key, and connection.</string>
+    <string name="source_offline_recipe">Offline recipe</string>
+    <string name="source_offline_fallback">Offline starter</string>
+    <string name="source_cloud_ai">Cloud AI · %1$s</string>
+    <string name="cloud_not_configured_hint">Cloud mode needs a provider. Set one up in Settings, or use Auto/Offline.</string>
+
+    <!-- Cloud provider settings -->
+    <string name="cloud_section_title">AI &amp; Cloud (optional)</string>
+    <string name="cloud_section_body">Optionally generate code with your own cloud AI provider. Your instruction and selected language are sent to the provider you choose. Offline mode sends nothing.</string>
+    <string name="cloud_provider_label">Provider preset</string>
+    <string name="cloud_base_url_label">Base URL (https)</string>
+    <string name="cloud_model_label">Model</string>
+    <string name="cloud_api_key_label">API key</string>
+    <string name="cloud_api_key_saved">API key stored on this device</string>
+    <string name="cloud_api_key_missing">No API key stored</string>
+    <string name="cloud_save_endpoint">Save endpoint</string>
+    <string name="cloud_save_key">Save key</string>
+    <string name="cloud_clear_key">Remove key</string>
+    <string name="cloud_test_connection">Test connection</string>
+    <string name="cloud_testing">Testing…</string>
+    <string name="cloud_configured_status">Configured: %1$s · %2$s</string>
+    <string name="cloud_not_configured_status">Not configured yet</string>
+    <string name="cloud_privacy_note">The API key is encrypted with the Android Keystore and never exported or logged. Prompts reach only your configured provider, and only in Cloud or Auto mode. Cloud output may be incorrect or unsafe — review it before use.</string>
 </resources>
