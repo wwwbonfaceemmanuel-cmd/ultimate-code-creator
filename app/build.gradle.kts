@@ -30,15 +30,15 @@ android {
 
     signingConfigs {
         val keystorePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
-        val storePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
-        val keyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
-        val keyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
-        if (!keystorePath.isNullOrBlank() && !storePassword.isNullOrBlank() && !keyAlias.isNullOrBlank() && !keyPassword.isNullOrBlank()) {
+        val keystorePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
+        val signingKeyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
+        val signingKeyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
+        if (!keystorePath.isNullOrBlank() && !keystorePassword.isNullOrBlank() && !signingKeyAlias.isNullOrBlank() && !signingKeyPassword.isNullOrBlank()) {
             create("release") {
                 storeFile = file(keystorePath)
-                storePassword = storePassword
-                keyAlias = keyAlias
-                keyPassword = keyPassword
+                storePassword = keystorePassword
+                keyAlias = signingKeyAlias
+                keyPassword = signingKeyPassword
             }
         }
     }
