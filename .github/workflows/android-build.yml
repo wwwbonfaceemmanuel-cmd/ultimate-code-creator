@@ -57,15 +57,20 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
+          import xml.etree.ElementTree as ET
           path = Path('app/build/gradle-ci.log')
-          if not path.exists():
-              raise SystemExit(0)
-          lines = path.read_text(errors='replace').splitlines()
-          diagnostics = [line for line in lines if re.match(r'^(e: |FAILURE:|Execution failed|Could not |Caused by:|\* What went wrong:|> )', line)]
-          for line in diagnostics[-40:]:
-              escaped = line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-              print(f'::error::{escaped}')
+          lines = path.read_text(errors='replace').splitlines() if path.exists() else []
+          selected = [line for line in lines if line.startswith('e: ')][:30]
+          for report in Path('app/build/test-results').rglob('TEST-*.xml'):
+              for case in ET.parse(report).getroot().iter('testcase'):
+                  for failure in case.findall('failure'):
+                      selected.append(case.attrib.get('name', 'Test failure') + ': ' + (failure.text or failure.attrib.get('message', ''))[:1500])
+          if not selected:
+              start = next((i for i, line in enumerate(lines) if line.startswith('* What went wrong:')), None)
+              selected = lines[start:start + 45] if start is not None else [line for line in lines if not line.startswith('> Task')][-35:]
+          message = '\n'.join(selected)[:55000] or 'Build failed before Gradle produced a log; inspect the failed setup step.'
+          escaped = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          print(f'::error title=Gradle build diagnostics::{escaped}')
           PY
 
       - name: Upload installable debug APK
