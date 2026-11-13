@@ -32,7 +32,7 @@ object OfflineCodeSynthesizer {
             code = starter(language, safeComment(prompt)),
             intentDetected = "${language.displayName} starter",
             explanation = if (recipe == null) {
-                "No bundled recipe matched. This is a language-specific starting point, not an implementation of your instruction."
+                "No bundled recipe matched. This is a language-specific starter, not an implementation of your instruction."
             } else {
                 "The ${recipe.intent} recipe is not bundled for ${language.displayName}. This is a starter, not the requested implementation."
             },
