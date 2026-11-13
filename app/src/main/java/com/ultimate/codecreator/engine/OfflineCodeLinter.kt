@@ -191,7 +191,7 @@ object OfflineCodeLinter {
         if (!mismatch) stack.forEach { (ch, openingLine) ->
             errors.add(CodeError(openingLine, Severity.ERROR, "Unclosed delimiter '$ch'", "Add '${openings.getValue(ch)}' to close this delimiter."))
         }
-        val missing = if (mismatch) "" else stack.asReversed().joinToString("") { openings.getValue(it.first) }
+        val missing = if (mismatch) "" else stack.asReversed().joinToString("") { openings.getValue(it.first).toString() }
         return DelimiterResult(errors, missing, mismatch)
     }
 

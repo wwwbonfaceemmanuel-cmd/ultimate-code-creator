@@ -52,7 +52,7 @@ fun GenerateScreen(viewModel: CodeCreatorViewModel) {
         Spacer(Modifier.height(8.dp))
         Text("Choose a bundled recipe, or get a clearly labelled starter in your language.", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(14.dp))
-        LanguageChips(selectedLanguage) { selectedLanguage = it }
+        LanguageChips(selectedLanguage, onSelected = { selectedLanguage = it })
         Spacer(Modifier.height(14.dp))
         Text("Tap to add a keyword", style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.height(6.dp))

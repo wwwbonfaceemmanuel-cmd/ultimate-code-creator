@@ -41,7 +41,7 @@ fun DebugScreen(viewModel: CodeCreatorViewModel) {
         Text("Offline structural checks", style = MaterialTheme.typography.titleMedium)
         Text("Comments and strings are ignored. This is a heuristic linter, not a compiler or a full AST parser.", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(12.dp))
-        LanguageChips(selectedLanguage) { selectedLanguage = it }
+        LanguageChips(selectedLanguage, onSelected = { selectedLanguage = it })
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             value = inputCode,
