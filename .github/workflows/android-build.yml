@@ -2,7 +2,8 @@ name: Android build
 
 on:
   push:
-    branches: [arena/2ae07405-ultimate-code-creator]
+    branches: [main, "arena/**"]
+    tags: ["v*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -12,9 +13,9 @@ permissions:
 
 jobs:
   build:
-    name: Test and build debug APK
+    name: Unit tests, lint, debug and release builds
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Check out source
         uses: actions/checkout@v7.0.1
@@ -31,25 +32,23 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6.4.1
 
-      - name: Verify preinstalled Android SDK
+      - name: Verify Android SDK packages
         shell: bash
         run: |
           set -euo pipefail
           : "${ANDROID_HOME:?GitHub-hosted Ubuntu must provide ANDROID_HOME}"
-          for package in platforms/android-34 build-tools/34.0.0; do
+          for package in platforms/android-36 build-tools/36.0.0; do
             if [[ ! -d "$ANDROID_HOME/$package" ]]; then
               "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "${package//\//;}"
             fi
           done
-          test -d "$ANDROID_HOME/platforms/android-34"
-          test -d "$ANDROID_HOME/build-tools/34.0.0"
 
       - name: Unit test, lint, and build
         shell: bash
         run: |
           set -o pipefail
           mkdir -p app/build
-          ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug 2>&1 | tee app/build/gradle-ci.log
+          ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug assembleRelease bundleRelease 2>&1 | tee app/build/gradle-ci.log
 
       - name: Surface build diagnostics
         if: failure()
@@ -73,12 +72,22 @@ jobs:
           print(f'::error title=Gradle build diagnostics::{escaped}')
           PY
 
-      - name: Upload installable debug APK
+      - name: Upload debug APK
         uses: actions/upload-artifact@v7.0.2
         with:
           name: UltimateCodeCreator-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload unsigned release artifacts
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: UltimateCodeCreator-release-unsigned
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload diagnostic reports
@@ -92,3 +101,74 @@ jobs:
             app/build/gradle-ci.log
           if-no-files-found: ignore
           retention-days: 7
+
+  emulator:
+    name: Instrumentation tests (API ${{ matrix.api-level }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api-level: 26
+            target: google_apis
+            arch: x86_64
+          - api-level: 36
+            target: google_apis
+            arch: x86_64
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run instrumentation tests
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: ./gradlew --no-daemon connectedDebugAndroidTest
+
+      - name: Upload instrumentation reports
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: Instrumentation-reports-API-${{ matrix.api-level }}
+          path: app/build/reports/androidTests/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  dependency-review:
+    name: Dependency review (opt-in)
+    # Requires both Dependency graph in repository security settings and an
+    # explicit DEPENDENCY_GRAPH_ENABLED=true Actions variable. A skipped job
+    # must never be interpreted as a completed security review.
+    if: github.event_name == 'pull_request' && vars.DEPENDENCY_GRAPH_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+      - name: Review dependencies
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

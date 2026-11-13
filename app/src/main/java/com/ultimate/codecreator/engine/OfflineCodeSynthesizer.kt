@@ -1,6 +1,8 @@
 package com.ultimate.codecreator.engine
 
 import com.ultimate.codecreator.model.GenerationResult
+import com.ultimate.codecreator.model.RecipeInfo
+import com.ultimate.codecreator.model.RecipeParameter
 import com.ultimate.codecreator.model.SupportedLanguage
 
 /**
@@ -12,21 +14,54 @@ object OfflineCodeSynthesizer {
     const val MAX_PROMPT_LENGTH = 4_000
 
     private data class Recipe(
+        val id: String,
         val intent: String,
         val explanation: String,
         val pattern: Regex,
-        val templates: Map<SupportedLanguage, String>
+        val templates: Map<SupportedLanguage, String>,
+        val keywords: List<String>,
+        val dependencies: Map<SupportedLanguage, List<String>>,
+        val safetyNotes: List<String>,
+        val parameters: List<RecipeParameter>
     )
+
+    val catalog: List<RecipeInfo> by lazy {
+        recipes.map { recipe ->
+            RecipeInfo(
+                id = recipe.id,
+                title = recipe.intent,
+                explanation = recipe.explanation,
+                keywords = recipe.keywords,
+                languages = recipe.templates.keys.toList(),
+                dependencies = recipe.dependencies,
+                safetyNotes = recipe.safetyNotes,
+                parameters = recipe.parameters
+            )
+        }
+    }
+
+    fun catalogFor(language: SupportedLanguage): List<RecipeInfo> = catalog.filter { language in it.languages }
 
     fun synthesize(rawPrompt: String, language: SupportedLanguage): GenerationResult {
         val prompt = rawPrompt.trim()
         require(prompt.isNotEmpty()) { "Enter an instruction or choose a keyword first." }
         require(prompt.length <= MAX_PROMPT_LENGTH) { "Keep instructions under $MAX_PROMPT_LENGTH characters." }
         val normalized = prompt.lowercase()
-        val recipe = recipes.firstOrNull { it.pattern.containsMatchIn(normalized) }
+        val matches = recipes.filter { it.pattern.containsMatchIn(normalized) }
+        val recipe = matches.firstOrNull()
         val template = recipe?.templates?.get(language)
-        if (template != null) {
-            return GenerationResult(template, recipe!!.intent, recipe.explanation, language)
+        if (template != null && recipe != null) {
+            val (code, appliedParameters) = applyParameters(template, recipe, prompt)
+            return GenerationResult(
+                code = code,
+                intentDetected = recipe.intent,
+                explanation = recipe.explanation,
+                language = language,
+                recipeId = recipe.id,
+                confidence = if (matches.size == 1) 0.95f else 0.75f,
+                alternatives = matches.drop(1).map { it.intent },
+                appliedParameters = appliedParameters
+            )
         }
         return GenerationResult(
             code = starter(language, safeComment(prompt)),
@@ -37,8 +72,24 @@ object OfflineCodeSynthesizer {
                 "The ${recipe.intent} recipe is not bundled for ${language.displayName}. This is a starter, not the requested implementation."
             },
             language = language,
-            isTemplateFallback = true
+            isTemplateFallback = true,
+            alternatives = matches.map { it.intent }
         )
+    }
+
+    private fun applyParameters(template: String, recipe: Recipe, prompt: String): Pair<String, Map<String, String>> {
+        var code = template
+        val applied = mutableMapOf<String, String>()
+        recipe.parameters.forEach { parameter ->
+            val match = Regex("\\b${Regex.escape(parameter.key)}\\s*=\\s*([^\\s,;]+)", RegexOption.IGNORE_CASE).find(prompt)
+            val value = match?.groupValues?.get(1) ?: parameter.defaultValue
+            require(Regex(parameter.validationPattern).matches(value)) {
+                "Invalid ${parameter.label}. ${parameter.helpText}"
+            }
+            code = code.replace("{{${parameter.key}}}", value)
+            applied[parameter.key] = value
+        }
+        return code to applied
     }
 
     private fun safeComment(prompt: String): String = prompt
@@ -52,7 +103,31 @@ object OfflineCodeSynthesizer {
         explanation: String,
         pattern: String,
         vararg templates: Pair<SupportedLanguage, String>
-    ) = Recipe(intent, explanation, Regex(pattern), templates.toMap())
+    ): Recipe {
+        val id = intent.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
+        val keywords = pattern.split('|')
+            .map { it.replace(Regex("[^a-zA-Z0-9 /_+.-]"), " ").replace(Regex("\\s+"), " ").trim() }
+            .filter { it.isNotBlank() }
+        val dependencies = when (intent) {
+            "REST API example" -> mapOf(
+                SupportedLanguage.PYTHON to listOf("fastapi", "uvicorn"),
+                SupportedLanguage.JAVASCRIPT to listOf("express")
+            )
+            "Concurrent / async tasks" -> mapOf(SupportedLanguage.KOTLIN to listOf("kotlinx-coroutines-core"))
+            else -> emptyMap()
+        }
+        val safetyNotes = when {
+            intent.contains("login", ignoreCase = true) -> listOf("UI demo only; not a real authentication system.")
+            intent.contains("HTTP", ignoreCase = true) || intent.contains("REST", ignoreCase = true) -> listOf("Generated client/service may require network access when run outside this app.")
+            intent.contains("File", ignoreCase = true) -> listOf("Replace example paths and review file permissions before running.")
+            intent.contains("SQL", ignoreCase = true) -> listOf("Review schema, types, and constraints for your database.")
+            else -> emptyList()
+        }
+        val parameters = if (intent == "LRU cache") listOf(
+            RecipeParameter("capacity", "Cache capacity", "2", "^[1-9][0-9]{0,4}$", "Use an integer from 1 to 99999, for example capacity=10.")
+        ) else emptyList()
+        return Recipe(id, intent, explanation, Regex(pattern), templates.toMap(), keywords, dependencies, safetyNotes, parameters)
+    }
 
     private val sqlRecipes = listOf(
         recipe("SQL CRUD transaction", "Portable table, insert, query, update and delete examples. Review types and constraints for your database.", "crud|database|query",
@@ -611,7 +686,7 @@ object OfflineCodeSynthesizer {
                             self.items.popitem(last=False)
 
                 if __name__ == "__main__":
-                    cache = LRUCache(2)
+                    cache = LRUCache({{capacity}})
                     cache.put("a", 1)
                     cache.put("b", 2)
                     cache.get("a")
@@ -624,7 +699,7 @@ object OfflineCodeSynthesizer {
 
                 public class Main {
                     public static void main(String[] args) {
-                        final int capacity = 2;
+                        final int capacity = {{capacity}};
                         Map<String, Integer> cache = new LinkedHashMap<>(16, 0.75f, true) {
                             @Override
                             protected boolean removeEldestEntry(Map.Entry<String, Integer> eldest) {
@@ -651,7 +726,7 @@ object OfflineCodeSynthesizer {
                 }
 
                 fun main() {
-                    val cache = LRUCache<String, Int>(2)
+                    val cache = LRUCache<String, Int>({{capacity}})
                     cache.put("a", 1)
                     cache.put("b", 2)
                     cache.get("a")
@@ -680,7 +755,7 @@ object OfflineCodeSynthesizer {
                     }
                 }
 
-                const cache = new LRUCache(2);
+                const cache = new LRUCache({{capacity}});
                 cache.put('a', 1); cache.put('b', 2); cache.get('a'); cache.put('c', 3);
                 console.log(cache.get('b'), cache.get('a'));
             """.trimIndent(),
@@ -719,7 +794,7 @@ object OfflineCodeSynthesizer {
 
                 public static class Program {
                     public static void Main() {
-                        var cache = new LRUCache<string, int>(2);
+                        var cache = new LRUCache<string, int>({{capacity}});
                         cache.Put("a", 1); cache.Put("b", 2); cache.TryGet("a", out _); cache.Put("c", 3);
                         Console.WriteLine(cache.TryGet("b", out _));
                     }
@@ -748,7 +823,7 @@ object OfflineCodeSynthesizer {
                     }
                 }
 
-                const cache = new LRUCache<string, number>(2);
+                const cache = new LRUCache<string, number>({{capacity}});
                 cache.put('a', 1); cache.put('b', 2); cache.get('a'); cache.put('c', 3);
                 console.log(cache.get('b'), cache.get('a'));
             """.trimIndent()),

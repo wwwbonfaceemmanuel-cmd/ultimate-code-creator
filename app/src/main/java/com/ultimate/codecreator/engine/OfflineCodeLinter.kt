@@ -49,6 +49,7 @@ object OfflineCodeLinter {
         val delimiters = checkDelimiters(masked.text, lineOffset)
         val python = if (language == SupportedLanguage.PYTHON && !isCss) checkPythonHeaders(masked.text, lineOffset) else PythonResult(emptyList(), emptySet())
         val errors = masked.errors + delimiters.errors + python.errors +
+            (if (language == SupportedLanguage.PYTHON && !isCss) mixedIndentationWarnings(code, lineOffset) else emptyList()) +
             if (!isCss && language in setOf(SupportedLanguage.JAVA, SupportedLanguage.CPP, SupportedLanguage.C_SHARP)) possibleSemicolons(masked.text, lineOffset) else emptyList()
         val lines = code.lines().toMutableList()
         val maskedLines = masked.text.lines()
@@ -194,6 +195,14 @@ object OfflineCodeLinter {
         val missing = if (mismatch) "" else stack.asReversed().joinToString("") { openings.getValue(it.first).toString() }
         return DelimiterResult(errors, missing, mismatch)
     }
+
+    private fun mixedIndentationWarnings(code: String, lineOffset: Int): List<CodeError> =
+        code.lines().mapIndexedNotNull { index, line ->
+            val leading = line.takeWhile { it == ' ' || it == '\t' }
+            if (leading.contains(' ') && leading.contains('\t')) {
+                CodeError(index + 1 + lineOffset, Severity.WARNING, "Mixed tabs and spaces in Python indentation", "Use a consistent indentation style; spaces are recommended.")
+            } else null
+        }
 
     private fun checkPythonHeaders(masked: String, lineOffset: Int): PythonResult {
         val errors = mutableListOf<CodeError>()

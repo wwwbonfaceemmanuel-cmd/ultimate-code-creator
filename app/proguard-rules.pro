@@ -1,2 +1,7 @@
-# Release shrinking is disabled for this first version.
-# Add project-specific keep rules here before enabling minification.
+# Room generates implementations referenced by the framework.
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-dontwarn org.json.**
+
+# WebView JavaScript bridges are not used. If one is added later, keep its
+# @JavascriptInterface methods explicitly here.
