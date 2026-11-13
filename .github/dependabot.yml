@@ -9,3 +9,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # The Android toolchain (AGP, Kotlin, KSP, Compose, AndroidX) is a
+      # coordinated, CI-verified baseline. Major bumps need a deliberate
+      # migration (Gradle wrapper + AGP + compiler DSL together) and must not
+      # be auto-proposed as isolated changes. Minor/patch updates still flow.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
