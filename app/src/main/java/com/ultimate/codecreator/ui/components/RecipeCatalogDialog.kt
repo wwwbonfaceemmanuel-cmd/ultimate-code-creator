@@ -13,6 +13,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.ultimate.codecreator.R
 import com.ultimate.codecreator.engine.OfflineCodeSynthesizer
 import com.ultimate.codecreator.model.RecipeInfo

@@ -54,7 +54,7 @@ fun CodeEditor(
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii),
         visualTransformation = transformation,
-        softWrap = wordWrap,
+        singleLine = false,
         maxLines = Int.MAX_VALUE,
         modifier = modifier
             .fillMaxWidth()

@@ -44,7 +44,12 @@ fun SettingsScreen(viewModel: CodeCreatorViewModel) {
         }
         Spacer(Modifier.height(16.dp))
         Text(stringResource(R.string.editor_font_size, settings.editorFontSizeSp), style = MaterialTheme.typography.titleMedium)
-        Slider(value = settings.editorFontSizeSp.toFloat(), onValueChange = { size -> viewModel.updateSettings { it.copy(editorFontSizeSp = size.toInt()) }, valueRange = 10f..22f, steps = 11)
+        Slider(
+            value = settings.editorFontSizeSp.toFloat(),
+            onValueChange = { size -> viewModel.updateSettings { it.copy(editorFontSizeSp = size.toInt()) } },
+            valueRange = 10f..22f,
+            steps = 11
+        )
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.word_wrap), modifier = Modifier.weight(1f))
             Switch(checked = settings.editorWordWrap, onCheckedChange = { wrap -> viewModel.updateSettings { it.copy(editorWordWrap = wrap) } })
