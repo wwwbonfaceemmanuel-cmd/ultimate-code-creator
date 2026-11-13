@@ -13,35 +13,63 @@ permissions:
 jobs:
   build:
     name: Test and build debug APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6.2.0
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@v4
+        uses: gradle/actions/wrapper-validation@v6.4.1
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6.4.1
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+      - name: Verify preinstalled Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ANDROID_HOME:?GitHub-hosted Ubuntu must provide ANDROID_HOME}"
+          for package in platforms/android-34 build-tools/34.0.0; do
+            if [[ ! -d "$ANDROID_HOME/$package" ]]; then
+              "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "${package//\//;}"
+            fi
+          done
+          test -d "$ANDROID_HOME/platforms/android-34"
+          test -d "$ANDROID_HOME/build-tools/34.0.0"
 
       - name: Unit test, lint, and build
-        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p app/build
+          ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug 2>&1 | tee app/build/gradle-ci.log
+
+      - name: Surface build diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          path = Path('app/build/gradle-ci.log')
+          if not path.exists():
+              raise SystemExit(0)
+          lines = path.read_text(errors='replace').splitlines()
+          diagnostics = [line for line in lines if re.match(r'^(e: |FAILURE:|Execution failed|Could not |Caused by:|\* What went wrong:|> )', line)]
+          for line in diagnostics[-40:]:
+              escaped = line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error::{escaped}')
+          PY
 
       - name: Upload installable debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: UltimateCodeCreator-debug
           path: app/build/outputs/apk/debug/app-debug.apk
@@ -50,11 +78,12 @@ jobs:
 
       - name: Upload diagnostic reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: Android-diagnostic-reports
           path: |
             app/build/reports/
             app/build/test-results/
+            app/build/gradle-ci.log
           if-no-files-found: ignore
           retention-days: 7
