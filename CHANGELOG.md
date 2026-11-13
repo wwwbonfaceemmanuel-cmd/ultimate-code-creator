@@ -10,7 +10,7 @@
 - Safer HTML preview: JavaScript off by default, stop control, renderer-crash handling, blocked downloads, and explicit file/universal access denial.
 - Light/dark/system theme, editor font size, word wrap, settings screen, and tablet navigation rail.
 - Unit tests for engine, codec, and ViewModel; instrumentation tests for Room DAO and a core Compose flow.
-- CI for main/PR/arena branches, release tags, emulator matrix, dependency review, and dependency submission.
+- CI for main/PR/arena branches, release tags, emulator matrix, and opt-in dependency review/submission (requires repository Dependency graph and the `DEPENDENCY_GRAPH_ENABLED=true` Actions variable).
 - Signed release workflow scaffold, Dependabot, issue templates, privacy/security docs, and release/play checklists.
 
 ### Changed

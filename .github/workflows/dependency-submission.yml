@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   submit:
+    # See README: enable Dependency graph, then set this Actions variable.
+    if: vars.DEPENDENCY_GRAPH_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:

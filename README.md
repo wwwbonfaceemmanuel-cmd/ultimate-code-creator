@@ -55,8 +55,17 @@ GitHub Actions runs on `main`, `arena/**` working branches, pull requests to `ma
 - debug APK;
 - unsigned release APK/AAB;
 - instrumentation tests on API 26 and API 36 emulators;
-- dependency review on PRs;
-- dependency graph submission on `main`.
+- optional dependency review on PRs;
+- optional dependency graph submission on `main`.
+
+### Enable optional dependency checks
+
+Dependency review/submission is **off by default** because this repository currently has Dependency graph disabled. The repository owner must:
+
+1. Enable **Dependency graph** under **Settings → Code security and analysis**.
+2. Create the repository Actions variable `DEPENDENCY_GRAPH_ENABLED` with the value `true` under **Settings → Secrets and variables → Actions → Variables**.
+
+Until both steps are complete, these jobs are skipped; a skip is not a security review. The app build/test jobs do not depend on this setting.
 
 Signed release workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml).
 

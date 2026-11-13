@@ -157,8 +157,11 @@ jobs:
           retention-days: 7
 
   dependency-review:
-    name: Dependency review
-    if: github.event_name == 'pull_request'
+    name: Dependency review (opt-in)
+    # Requires both Dependency graph in repository security settings and an
+    # explicit DEPENDENCY_GRAPH_ENABLED=true Actions variable. A skipped job
+    # must never be interpreted as a completed security review.
+    if: github.event_name == 'pull_request' && vars.DEPENDENCY_GRAPH_ENABLED == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
