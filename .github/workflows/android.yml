@@ -52,6 +52,7 @@ jobs:
           "$tools/apksigner" verify --print-certs "$apk" | head -3
           "$tools/aapt2" dump badging "$apk" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label:|launchable-activity)"
           "$tools/aapt2" dump badging "$apk" | grep -q "launchable-activity: name='com.aicodestudio.app.MainActivity'"
+          echo "::notice title=APK::$("$tools/aapt2" dump badging "$apk" | grep -E "^(package|sdkVersion|targetSdkVersion)" | paste -sd ' ' -), $(stat -c %s "$apk") bytes"
           mkdir -p ../apk-out
           cp "$apk" ../apk-out/ai-code-studio.apk
           ls -l ../apk-out

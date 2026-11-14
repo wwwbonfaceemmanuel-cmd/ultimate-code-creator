@@ -18,9 +18,10 @@ adb exec-out screencap -p > shots/2-after-83s.png
 
 # Print the text on screen so the log shows what the user would see.
 adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1 || true
-echo "--- text on screen ---"
-adb shell cat /sdcard/ui.xml 2>/dev/null | grep -oE '(text|content-desc)="[^"]+"' | sort -u | head -40 || true
-echo "----------------------"
+seen=$(adb shell cat /sdcard/ui.xml 2>/dev/null | grep -oE '(text|content-desc)="[^"]+"' | sed -E 's/^[a-z-]+="//; s/"$//' | awk '!x[$0]++' | head -25 | paste -sd '|' - || true)
+echo "Text on screen: ${seen:-none found}"
+# Shown as a note on the run's summary page when run by GitHub Actions.
+if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::notice title=Text on the app screen::${seen:-none found}"; fi
 
 adb shell input keyevent KEYCODE_HOME
 sleep 2
