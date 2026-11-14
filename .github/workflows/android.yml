@@ -61,3 +61,35 @@ jobs:
           path: apk-out/ai-code-studio.apk
           if-no-files-found: error
           retention-days: 90
+
+  launch:
+    name: Launch test (emulator)
+    needs: apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: AI-Code-Studio-Android
+          path: apk-out
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install, open and check the app
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: bash android/launch-test.sh apk-out/ai-code-studio.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: launch-test-screenshots
+          path: shots
+          if-no-files-found: warn
+          retention-days: 7
