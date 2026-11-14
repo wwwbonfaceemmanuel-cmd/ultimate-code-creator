@@ -31,7 +31,8 @@ adb shell am start -W -n "$pkg/.MainActivity"
 sleep 5
 adb exec-out screencap -p > shots/3-reopened.png
 
-if adb logcat -d | grep -E "FATAL EXCEPTION|ANR in $pkg" -A 12; then
+adb logcat -d > shots/logcat.txt
+if grep -E "FATAL EXCEPTION|ANR in $pkg" -A 12 shots/logcat.txt; then
   echo "The app crashed or stopped responding."
   exit 1
 fi
