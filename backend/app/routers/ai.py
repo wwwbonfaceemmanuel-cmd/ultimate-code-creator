@@ -34,8 +34,9 @@ async def generate(
 ):
     """Generate a project with the connected AI model and save it."""
     await _spend("generate", settings, tracker, user)
-    text = await client.complete(ai_service.GENERATE_SYSTEM, ai_service.generate_user_prompt(body.prompt, body.language))
-    name, summary, files = ai_service.parse_generation(text)
+    name, summary, files = await ai_service.complete_and_parse(
+        client, ai_service.GENERATE_SYSTEM, ai_service.generate_user_prompt(body.prompt, body.language), ai_service.parse_generation
+    )
     return await store.create(
         {
             "name": body.name.strip() or name or "Untitled project",
@@ -58,6 +59,10 @@ async def edit(
 ):
     """Apply a natural-language instruction to the given files. Does not save."""
     await _spend("edit", settings, tracker, user)
-    text = await client.complete(ai_service.EDIT_SYSTEM, ai_service.edit_user_prompt(body.instruction, body.language, body.files))
-    summary, files, changed, deleted = ai_service.apply_edit(text, body.files)
+    summary, files, changed, deleted = await ai_service.complete_and_parse(
+        client,
+        ai_service.EDIT_SYSTEM,
+        ai_service.edit_user_prompt(body.instruction, body.language, body.files),
+        lambda text: ai_service.apply_edit(text, body.files),
+    )
     return EditResponse(summary=summary or "Changes applied.", files=files, changed=changed, deleted=deleted)
