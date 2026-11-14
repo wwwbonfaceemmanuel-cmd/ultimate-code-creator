@@ -383,3 +383,66 @@ async def test_provider_errors_are_not_retried():
     with pytest.raises(AIError):
         await ai_service.complete_and_parse(Failing(), "s", "u", ai_service.parse_generation)
     assert len(calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# Provider JSON mode refusing the model's output (Groq "Failed to generate JSON")
+# ---------------------------------------------------------------------------
+def groq_json_failure(failed_generation):
+    return httpx.Response(400, json={"error": {"message": "Failed to generate JSON. Please adjust your prompt. See 'failed_generation' for more details.", "type": "invalid_request_error", "code": "json_validate_failed", "failed_generation": failed_generation}})
+
+
+def real_client(handler):
+    settings = Settings(ai_api_key="k", ai_model="m", ai_base_url="https://ai.test/v1")
+    return OpenAICompatibleClient(settings, transport=httpx.MockTransport(handler))
+
+
+def ok_reply(content):
+    return httpx.Response(200, json={"choices": [{"message": {"content": content}, "finish_reason": "stop"}]})
+
+
+async def test_rejected_json_that_this_app_can_read_is_used_without_a_second_request():
+    sent = []
+    # Raw line breaks inside a string: refused by the provider, readable here.
+    almost = '{"name": "Pond", "summary": "s", "files": [{"path": "index.html", "content": "<p>\nfish\n</p>"}]}'
+
+    def handler(request):
+        sent.append(json.loads(request.content))
+        return groq_json_failure(almost)
+
+    name, _, files = await ai_service.complete_and_parse(real_client(handler), "s", "u", ai_service.parse_generation)
+    assert name == "Pond" and files[0].content == "<p>\nfish\n</p>" and len(sent) == 1
+
+
+async def test_rejected_json_is_retried_without_json_mode():
+    sent = []
+
+    def handler(request):
+        sent.append(json.loads(request.content))
+        return groq_json_failure('{"name": "Pond", "files": [{"path": "index.ht') if len(sent) == 1 else ok_reply(GEN_REPLY)
+
+    _, _, files = await ai_service.complete_and_parse(real_client(handler), "s", "u", ai_service.parse_generation)
+    assert files and len(sent) == 2
+    assert sent[0]["response_format"] == {"type": "json_object"} and "response_format" not in sent[1]
+    assert "not valid JSON" in sent[1]["messages"][1]["content"]
+
+
+async def test_rejected_json_twice_gives_a_plain_message():
+    def handler(request):
+        return groq_json_failure("")
+
+    with pytest.raises(AIError) as e:
+        await ai_service.complete_and_parse(real_client(handler), "s", "u", ai_service.parse_generation)
+    assert "HTTP 400" not in e.value.message and "failed_generation" not in e.value.message
+
+
+async def test_other_400_errors_are_not_retried():
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        return httpx.Response(400, json={"error": {"message": "max_tokens is too large", "code": "invalid_request_error"}})
+
+    with pytest.raises(AIError) as e:
+        await ai_service.complete_and_parse(real_client(handler), "s", "u", ai_service.parse_generation)
+    assert len(calls) == 1 and "max_tokens is too large" in e.value.message
