@@ -87,18 +87,6 @@ jobs:
           disable-animations: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: bash android/launch-test.sh apk-out/ai-code-studio.apk
-      - name: Read the screenshots
-        if: always()
-        run: |
-          sudo apt-get install -y -qq tesseract-ocr imagemagick > /dev/null 2>&1 || exit 0
-          echo "::notice title=DIAG ui::$(wc -c < shots/ui.xml 2>/dev/null) bytes $(head -c 1500 shots/ui.xml 2>/dev/null | tr -d '\n')"
-          echo "::notice title=DIAG console::$(grep -E 'CONSOLE|chromium|WebView' shots/logcat.txt | tail -25 | cut -c1-260 | paste -sd '~' -)"
-          convert shots/2-after-83s.png -resize 300x -colorspace Gray -quality 35 /tmp/small.jpg && echo "::notice title=DIAG img::$(base64 -w0 /tmp/small.jpg)"
-          for f in shots/*.png; do
-            convert "$f" -negate -colorspace Gray -resize 200% /tmp/ocr.png 2>/dev/null || cp "$f" /tmp/ocr.png
-            text=$(tesseract /tmp/ocr.png - 2>/dev/null | tr -s '[:space:]' ' ' | cut -c1-400)
-            echo "::notice title=Seen in $(basename "$f")::${text:-no text read}"
-          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:

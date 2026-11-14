@@ -16,14 +16,14 @@ adb exec-out screencap -p > shots/1-after-8s.png
 sleep 75
 adb exec-out screencap -p > shots/2-after-83s.png
 
-# Record the text on screen so the run shows what the user would see.
-adb shell rm -f /sdcard/ui.xml
-adb shell uiautomator dump /sdcard/ui.xml || true
+# The loading/offline screen is a plain Android layout with text; the website is not.
+# If that text is still showing, the site did not open.
+adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1 || true
 adb pull /sdcard/ui.xml shots/ui.xml > /dev/null 2>&1 || true
-seen=$(grep -oE '(text|content-desc)="[^"]+"' shots/ui.xml 2>/dev/null | sed -E 's/^[a-z-]+="//; s/"$//' | awk '!x[$0]++' | head -25 | paste -sd '|' - || true)
-echo "Text on screen: ${seen:-none found}"
-# Shown as a note on the run's summary page when run by GitHub Actions.
-if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::notice title=Text on the app screen::${seen:-none found}"; fi
+if grep -qE "Can't reach AI Code Studio|Can&apos;t reach|Opening AI Code Studio|Still starting" shots/ui.xml 2>/dev/null; then
+  echo "The website did not open inside the app (still on the loading or offline screen)."
+  site_failed=1
+fi
 
 adb shell input keyevent KEYCODE_HOME
 sleep 2
@@ -44,4 +44,5 @@ adb shell dumpsys activity activities | grep -E "ResumedActivity|mResumedActivit
   echo "The app's screen is not in front."
   exit 1
 }
+if [ -n "${site_failed:-}" ]; then exit 1; fi
 echo "Launch test passed."

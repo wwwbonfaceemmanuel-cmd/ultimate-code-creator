@@ -174,3 +174,15 @@ render.yaml          Render deployment blueprint
 | POST | `/api/export` | Build a ZIP |
 
 Interactive docs: `http://localhost:8000/docs`.
+
+## Android app
+
+`android/` is a small Android app that opens the hosted site full-screen. It has no logic or secrets of its own: sign-in, projects and AI generation all run on the website, so the app needs internet. It adds a loading screen, an offline screen with a retry button, Back-button navigation, and saving ZIP downloads to the phone's Downloads folder.
+
+The **Android app** workflow (`.github/workflows/android.yml`) builds the APK on every push, then installs and opens it on an emulator to check it starts and reaches the site.
+
+To get the APK: GitHub → **Actions** → **Android app** → open the latest run with a green tick → **Artifacts** → **AI-Code-Studio-Android**. The download is a ZIP; the `ai-code-studio.apk` file is inside it.
+
+- The site address is `appUrl` in `android/gradle.properties`. To build for another address without editing files, use **Run workflow** on the Actions page and fill in the address.
+- The APK is signed with a key stored in this repository (`android/keystore/app.p12`) so newer builds install over older ones. Because that key is public, use these builds for direct sharing only; a Play Store release needs a private key.
+
