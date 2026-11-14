@@ -28,6 +28,10 @@ class AIError(Exception):
         self.message = message
         # True when the model answered but in an unusable format; asking again can help.
         self.retryable = retryable
+        # Set when the provider's own JSON mode rejected the model's output
+        # (Groq: "Failed to generate JSON"). `failed_generation` is what the model wrote.
+        self.json_mode_failed = False
+        self.failed_generation = ""
 
 
 NOT_CONFIGURED = (
@@ -41,7 +45,7 @@ class OpenAICompatibleClient:
         self._s = settings
         self._transport = transport
 
-    async def complete(self, system: str, user: str) -> str:
+    async def complete(self, system: str, user: str, json_mode: bool | None = None) -> str:
         s = self._s
         if not s.ai_configured:
             raise AIError(503, NOT_CONFIGURED)
@@ -53,7 +57,7 @@ class OpenAICompatibleClient:
             ],
             "max_tokens": s.ai_max_output_tokens,
         }
-        if s.ai_json_mode:
+        if s.ai_json_mode if json_mode is None else json_mode:
             payload["response_format"] = {"type": "json_object"}
         url = s.ai_base_url.rstrip("/") + "/chat/completions"
         try:
@@ -67,6 +71,12 @@ class OpenAICompatibleClient:
             raise AIError(502, f"Could not reach the AI provider ({type(exc).__name__}).")
 
         if resp.status_code >= 400:
+            rejected = _json_mode_rejection(resp)
+            if rejected is not None:
+                err = AIError(502, "The AI did not produce a usable answer. Try again, or ask for a smaller project.", retryable=True)
+                err.json_mode_failed = True
+                err.failed_generation = rejected
+                raise err
             raise AIError(502, _provider_error(resp))
         try:
             data = resp.json()
@@ -83,6 +93,22 @@ class OpenAICompatibleClient:
                 "Raise AI_MAX_OUTPUT_TOKENS or ask for a smaller project.",
             )
         return content
+
+
+def _json_mode_rejection(resp: httpx.Response) -> str | None:
+    """Return the model's rejected text when the provider's JSON mode refused it, else None."""
+    if resp.status_code != 400:
+        return None
+    try:
+        err = resp.json().get("error")
+    except Exception:
+        return None
+    if not isinstance(err, dict):
+        return None
+    if err.get("code") != "json_validate_failed" and "failed to generate json" not in str(err.get("message", "")).lower():
+        return None
+    generated = err.get("failed_generation")
+    return generated if isinstance(generated, str) else ""
 
 
 def _provider_error(resp: httpx.Response) -> str:
@@ -162,7 +188,9 @@ def extract_json(text: str) -> dict:
         candidates.append(cleaned[start : end + 1])
     for candidate in candidates:
         try:
-            data = json.loads(candidate)
+            # strict=False also accepts raw line breaks and tabs inside strings,
+            # a common slip when a model writes file contents.
+            data = json.loads(candidate, strict=False)
         except ValueError:
             continue
         if isinstance(data, dict):
@@ -277,17 +305,37 @@ RETRY_NOTE = (
 
 
 async def complete_and_parse(client, system: str, user: str, parse):
-    """Ask the model and parse its reply; if the format is unusable, ask once more."""
-    text = await client.complete(system, user)
+    """Ask the model and parse its reply; if the reply is unusable, ask once more.
+
+    Two kinds of unusable reply are handled: one this app could not read, and one
+    the provider's JSON mode refused. For the second, the rejected text is tried
+    first (this parser is more forgiving than the provider's check), and the
+    second request is sent without JSON mode so the provider does not refuse again.
+    """
+    retry_args: dict = {}
     try:
+        text = await client.complete(system, user)
         return parse(text)
     except AIError as exc:
         if not exc.retryable:
             raise
-        logger.warning("Unusable AI reply (%s); retrying once. Start of reply: %r", exc.message, text[:400])
-        text = await client.complete(system, user + RETRY_NOTE.format(reason=exc.message))
-        try:
-            return parse(text)
-        except AIError as again:
-            logger.warning("Second AI reply also unusable (%s). Start of reply: %r", again.message, text[:400])
-            raise
+        reason = exc.message
+        if exc.json_mode_failed:
+            retry_args = {"json_mode": False}
+            reason = "it was not valid JSON."
+            logger.warning("Provider JSON mode rejected the reply. Start: %r End: %r", exc.failed_generation[:300], exc.failed_generation[-200:])
+            if exc.failed_generation.strip():
+                try:
+                    return parse(exc.failed_generation)
+                except AIError as inner:
+                    if not inner.retryable:
+                        raise
+        else:
+            logger.warning("Unusable AI reply (%s); retrying once. Start of reply: %r", exc.message, text[:400])
+
+    text = await client.complete(system, user + RETRY_NOTE.format(reason=reason), **retry_args)
+    try:
+        return parse(text)
+    except AIError as again:
+        logger.warning("Second AI reply also unusable (%s). Start of reply: %r", again.message, text[:400])
+        raise
