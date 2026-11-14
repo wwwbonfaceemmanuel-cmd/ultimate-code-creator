@@ -1,119 +1,131 @@
-# Ultimate Code Creator
+# AI Code Studio
 
-Offline-first Android code snippet workbench built with Kotlin, Jetpack Compose, and Room, with a deterministic on-device recipe engine and **optional cloud AI generation**.
+Describe the software you want in ordinary language; a connected AI model writes a multi-file project that you can browse, edit, preview, check, save and download.
 
-> Professional positioning: create, inspect, repair, save, import/export, and preview code snippets. Works fully offline; cloud AI is opt-in with your own provider key. Curated recipes are labelled clearly, AI output is labelled as AI, and unsupported offline requests produce starters, not fake solutions.
+- **Frontend:** React + TypeScript (Vite), Monaco Editor — `frontend/`
+- **Backend:** Python FastAPI — `backend/`
+- **Database:** Supabase (Postgres) — `supabase/schema.sql`
 
-## Generation modes
+## What works today
 
-The app chooses where code comes from based on the mode you pick on the Generate screen:
+| Area | Status |
+| --- | --- |
+| Dashboard, navigation, project list with search and filter | Working |
+| Prompt screen with language selector (HTML, CSS, JavaScript, TypeScript, Python, Java, Kotlin, PHP, C++, C#, Dart) | Working |
+| AI project generation and follow-up AI edits (with undo) | Working **once you connect a model** — see below. Without one, the app says so and the buttons are disabled; nothing is faked. |
+| Workspace: file explorer, Monaco editor with syntax highlighting, new/rename/delete file | Working |
+| Save and reopen projects | Working (local files by default, Supabase when configured) |
+| Live preview | Working for projects with an HTML page (sandboxed iframe; local CSS/JS files are inlined) |
+| Download as ZIP | Working |
+| Code checks | Python and JSON syntax, HTML tag nesting and missing local files, bracket balance for the other languages. Code is not compiled or run. |
+| Mobile layout | Working |
 
-- **Auto** (default): confident bundled recipes stay offline (fast and private). Novel requests use cloud AI only when you have configured a provider and you are online, and fall back to the offline result if the cloud call fails. With no provider configured, Auto behaves exactly like Offline.
-- **Offline**: only the on-device recipe engine is used. No network.
-- **Cloud AI**: always uses your configured provider; surfaces a clear error if it is unavailable.
+### Not built yet
 
-### Cloud AI (optional, bring your own key)
+- **User accounts.** There is no login. Anyone who can reach the server can see every project and spend your AI credit, so do not put it on the public internet without adding authentication (Supabase Auth is the intended route; the `owner_id` column is reserved for it) or putting it behind a private network / access proxy.
+- Running non-web projects (Python, Java, …) in the browser. Download the ZIP and run them locally.
+- Streaming AI output, project version history, rate limiting.
 
-Configure a provider in **Settings → AI & Cloud**: pick a preset (OpenAI, OpenRouter, Groq, or Custom), set the base URL and model, and paste your API key. Any OpenAI-compatible `/chat/completions` endpoint works.
+## Run it locally
 
-- The API key is encrypted with a non-exportable Android Keystore key (AES/GCM). It is never exported, logged, or included in snippet packs.
-- Only your instruction and target language are sent, over HTTPS, to the provider you choose. The developer receives nothing.
-- Cloud output is AI-generated and unverified — review it before use.
-
-## What works
-
-- **Offline recipe synthesis** for algorithms, caches, stacks, trees, file I/O, concurrency, HTTP clients, REST services, SQL, and HTML components.
-- **Optional cloud AI generation** with Auto/Offline/Cloud modes, bring-your-own-key OpenAI-compatible providers, and Keystore-encrypted key storage.
-- **11 language targets:** Python, HTML/CSS/JavaScript, Java, Kotlin, JavaScript, C++, SQL, Go, Rust, C#, TypeScript.
-- **Recipe catalog** with keywords, language coverage, dependencies, safety notes, confidence, alternatives, and parameterized LRU capacity (`capacity=10`).
-- **Honest fallbacks:** unsupported requests produce a labelled starter in the selected language.
-- **Editor workflows:** syntax highlighting, undo/redo, find/replace, whitespace cleanup, conservative newline indentation, file open/save/share.
-- **Structural linting:** comment/string-aware delimiter checks, Python header colons and mixed-indentation warnings, conservative Java/C++/C# semicolon warnings, HTML tag nesting, embedded CSS/JS checks, and repair diff review.
-- **Local snippet library:** Room/SQLite storage, search, tags, favorites, rename, duplicate, delete, delete-all, versioned JSON import/export, and legacy migration.
-- **Restricted HTML preview:** network blocked in the WebView (interception + strict CSP), blocked file/content access and downloads, JavaScript disabled by default, stop control, and renderer-crash handling.
-- **Settings:** system/light/dark theme, editor font size, word wrap, preview JavaScript toggle.
-- **Tablet/landscape baseline:** navigation rail on wide screens.
-
-## Important limitations
-
-The offline engine is deterministic recipe matching, not AI. Optional cloud AI uses a remote provider and its output is unverified. This is **not** a full IDE, compiler, or language server. The linter is heuristic and does not prove correctness or safety. A clean lint result is not a guarantee.
-
-Generated HTTP/API examples may need dependencies or network access when run elsewhere. The login recipe is a UI demo, not production authentication.
-
-Tree-sitter native parsing is not bundled yet. The code includes a parser abstraction and an integration plan in [`docs/TREE_SITTER_PLAN.md`](docs/TREE_SITTER_PLAN.md).
-
-## Build
-
-Requirements:
-
-- JDK 17
-- Android SDK Platform 36 and Build Tools 36.0.0
-- Android 8.0 / API 26 or newer for installation
-- Internet access for the first Gradle/dependency download
+Requirements: Python 3.11+, Node.js 20+.
 
 ```bash
-./gradlew testDebugUnitTest lintDebug assembleDebug
+# 1. Backend
+cd backend
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt     # Windows: .venv\Scripts\pip
+cp .env.example .env                            # then edit .env (see below)
+.venv/bin/uvicorn app.main:app --port 8000 --reload
+
+# 2. Frontend (second terminal)
+cd frontend
+npm install
+npm run dev                                     # http://localhost:5173
 ```
 
-Debug APK:
+The dev server proxies `/api` to the backend, so the browser never talks to the AI provider or Supabase directly.
 
-```text
-app/build/outputs/apk/debug/app-debug.apk
+## Connect an AI model
+
+The backend calls any **OpenAI-compatible** `/chat/completions` API. Set these in `backend/.env` and restart the backend:
+
+```ini
+AI_API_KEY=your-secret-key
+AI_BASE_URL=https://api.openai.com/v1     # or https://openrouter.ai/api/v1, https://api.groq.com/openai/v1, ...
+AI_MODEL=the-model-id-from-your-provider
 ```
 
-Release builds enable R8 and resource shrinking. Without signing environment variables, CI produces unsigned release artifacts for inspection. For signed releases, see [`docs/RELEASE.md`](docs/RELEASE.md).
+Optional: `AI_MAX_OUTPUT_TOKENS` (default 8000 — raise it for bigger projects if your model allows), `AI_TIMEOUT_SECONDS` (default 180), `AI_JSON_MODE=false` if your provider rejects `response_format`.
 
-## CI
+Open **Settings** in the app and press **Check again** to confirm. The key stays on the server: it is never sent to the browser or returned by any endpoint.
 
-GitHub Actions runs on `main`, `arena/**` working branches, pull requests to `main`, and `v*` tags:
+To use a provider with a different API shape, add a client class in `backend/app/services/ai.py` with the same `complete(system, user)` coroutine and return it from `get_ai_client`.
 
-- unit tests;
-- Android lint;
-- debug APK;
-- unsigned release APK/AAB;
-- instrumentation tests on API 26 and API 36 emulators;
-- optional dependency review on PRs;
-- optional dependency graph submission on `main`.
+## Connect Supabase
 
-### Enable optional dependency checks
+Without Supabase, projects are stored as JSON files in `backend/data/` — fine for local use, but most hosts wipe the disk on redeploy.
 
-Dependency review/submission is **off by default** because this repository currently has Dependency graph disabled. The repository owner must:
+1. Create a Supabase project.
+2. Run `supabase/schema.sql` in the SQL editor.
+3. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API) in `backend/.env` and restart.
 
-1. Enable **Dependency graph** under **Settings → Code security and analysis**.
-2. Create the repository Actions variable `DEPENDENCY_GRAPH_ENABLED` with the value `true` under **Settings → Secrets and variables → Actions → Variables**.
+The service-role key is used only by the backend. Row Level Security is enabled with no policies, so the public anon key can read nothing.
 
-Until both steps are complete, these jobs are skipped; a skip is not a security review. The app build/test jobs do not depend on this setting.
+## Deploy
 
-Signed release workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml).
+**One service (simplest).** The backend serves the built frontend when `frontend/dist` exists. The included `Dockerfile` does this:
 
-## Project structure
-
-```text
-app/src/main/java/com/ultimate/codecreator/
-├── MainActivity.kt
-├── model/                 # language, recipe, snippet, settings models
-├── engine/                # recipes, linter, highlighter, diff, formatter, preview policy
-│   └── parser/            # parser backend abstraction
-├── data/                  # Room repository, settings, import/export codec, legacy migration
-│   └── local/             # Room entity/DAO/database
-├── viewmodel/             # state and use-cases
-└── ui/                    # Compose theme, components, screens
+```bash
+docker build -t ai-code-studio .
+docker run -p 8000:8000 \
+  -e AI_API_KEY=... -e AI_MODEL=... -e AI_BASE_URL=... \
+  -e SUPABASE_URL=... -e SUPABASE_SERVICE_ROLE_KEY=... \
+  ai-code-studio
 ```
 
-## Documentation
+This suits any container host (Render, Railway, Fly.io, Cloud Run…). Set the variables in the host's secret settings, not in the image. The server listens on `$PORT` if the host sets it.
 
-- [Capability matrix](docs/CAPABILITIES.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Threat model](docs/THREAT_MODEL.md)
-- [Testing](docs/TESTING.md)
-- [Recipe authoring](docs/RECIPE_AUTHORING.md)
-- [Release guide](docs/RELEASE.md)
-- [Play Store checklist](docs/PLAY_CHECKLIST.md)
-- [Tree-sitter plan](docs/TREE_SITTER_PLAN.md)
-- [Privacy](PRIVACY.md)
-- [Security](SECURITY.md)
-- [Changelog](CHANGELOG.md)
+**Two services.** Host `frontend/dist` on a static host and the backend separately. Configure the static host to forward `/api/*` to the backend (recommended), or serve the API on another origin and list the frontend origin in `CORS_ORIGINS`.
 
-## License
+Always use Supabase in production, and read the note about user accounts above first.
 
-Apache-2.0. See [LICENSE](LICENSE).
+## Tests and checks
+
+```bash
+cd backend && .venv/bin/pip install -r requirements-dev.txt && .venv/bin/pytest
+cd frontend && npm run build        # type-checks, then builds
+```
+
+## Layout
+
+```
+backend/app/
+  main.py            app factory, error handlers, static frontend
+  config.py          environment settings
+  schemas.py         request/response models, limits, path safety
+  routers/           status, projects, ai (generate/edit), tools (validate/export)
+  services/ai.py     AI client, prompts, response parsing
+  services/store.py  Supabase and local-file project stores
+  services/validator.py
+frontend/src/
+  pages/             Dashboard, NewProject, Projects, Workspace, Settings
+  components/        Layout, FileExplorer, Modal, ProjectCard, AiNotice
+  lib/               Monaco setup, preview builder, helpers
+  api.ts             typed API client
+supabase/schema.sql
+```
+
+## API
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/status` | AI and storage connection state (no secrets) |
+| GET/POST | `/api/projects` | List / create |
+| GET/PUT/DELETE | `/api/projects/{id}` | Read / update / delete |
+| POST | `/api/ai/generate` | Generate a project from a prompt and save it |
+| POST | `/api/ai/edit` | Apply an instruction to a set of files |
+| POST | `/api/validate` | Check files |
+| POST | `/api/export` | Build a ZIP |
+
+Interactive docs: `http://localhost:8000/docs`.
