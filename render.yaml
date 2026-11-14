@@ -11,8 +11,11 @@ services:
         sync: false
       - key: AI_MODEL
         sync: false
+      # Your AI provider's address, e.g. https://api.openai.com/v1 or
+      # https://api.groq.com/openai/v1. Entered in Render so that later
+      # Blueprint syncs do not overwrite it.
       - key: AI_BASE_URL
-        value: https://api.openai.com/v1
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
