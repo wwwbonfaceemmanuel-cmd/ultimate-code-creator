@@ -108,7 +108,7 @@ The backend serves the built frontend, so the whole app is **one service**. The 
 
 1. Do the Supabase steps above and have your AI key ready.
 2. On render.com choose **New → Blueprint** and pick this repository. Render reads `render.yaml`.
-3. Enter the values it asks for: `AI_API_KEY`, `AI_MODEL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. Change `AI_BASE_URL` if you are not using OpenAI.
+3. Enter the values it asks for: `AI_API_KEY`, `AI_MODEL`, `AI_BASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. For `AI_BASE_URL` enter your provider's address, for example `https://api.openai.com/v1` or `https://api.groq.com/openai/v1`.
 4. Deploy. When it is live, copy the service address into Supabase **Authentication → URL Configuration → Site URL**.
 5. Open the address, create your account, and generate a small project to confirm everything is connected.
 
