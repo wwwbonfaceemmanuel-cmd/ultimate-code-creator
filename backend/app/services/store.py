@@ -130,8 +130,10 @@ class SupabaseStore:
             raise StoreError(f"Could not reach Supabase ({type(exc).__name__}).")
         if resp.status_code >= 400:
             hint = ""
-            if resp.status_code in (401, 403):
+            if resp.status_code == 401:
                 hint = " Check SUPABASE_SERVICE_ROLE_KEY."
+            elif resp.status_code == 403:
+                hint = " The server key has no access to the table: run the latest supabase/schema.sql, and check SUPABASE_SERVICE_ROLE_KEY is the secret key."
             elif resp.status_code == 404:
                 hint = " Has supabase/schema.sql been run?"
             raise StoreError(f"Supabase returned HTTP {resp.status_code}.{hint}")

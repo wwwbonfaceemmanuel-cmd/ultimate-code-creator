@@ -55,7 +55,11 @@ class SupabaseUsage:
         except httpx.HTTPError as exc:
             raise StoreError(f"Could not reach Supabase ({type(exc).__name__}).")
         if resp.status_code >= 400:
-            hint = " Has the latest supabase/schema.sql been run?" if resp.status_code == 404 else ""
+            hint = ""
+            if resp.status_code == 404:
+                hint = " Has the latest supabase/schema.sql been run?"
+            elif resp.status_code == 403:
+                hint = " The server key has no access to the table: run the latest supabase/schema.sql, and check SUPABASE_SERVICE_ROLE_KEY is the secret key."
             raise StoreError(f"Supabase returned HTTP {resp.status_code} for usage tracking.{hint}")
         return resp
 

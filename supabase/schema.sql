@@ -33,3 +33,10 @@ create table if not exists public.ai_usage (
 create index if not exists ai_usage_user_time_idx on public.ai_usage (user_id, created_at desc);
 
 alter table public.ai_usage enable row level security;
+
+-- Access: only the backend's secret (service_role) key may use these tables.
+-- Newer Supabase projects do not grant this automatically, and without it the
+-- app reports "Supabase returned HTTP 403".
+revoke all on table public.projects, public.ai_usage from anon, authenticated;
+grant select, insert, update, delete on table public.projects, public.ai_usage to service_role;
+grant usage, select on sequence public.ai_usage_id_seq to service_role;
