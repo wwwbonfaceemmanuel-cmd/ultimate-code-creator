@@ -6,6 +6,13 @@ apk="$1"
 pkg=com.aicodestudio.app
 mkdir -p shots
 
+fail() {
+  echo "$1"
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::error title=Launch test::$1"; fi
+  exit 1
+}
+trap 'if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::error title=Launch test::stopped at line $LINENO"; fi' ERR
+
 adb install -r "$apk"
 adb logcat -c
 adb shell am start -W -n "$pkg/.MainActivity"
@@ -21,8 +28,7 @@ adb exec-out screencap -p > shots/2-after-83s.png
 adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1 || true
 adb pull /sdcard/ui.xml shots/ui.xml > /dev/null 2>&1 || true
 if grep -qE "Can't reach AI Code Studio|Can&apos;t reach|Opening AI Code Studio|Still starting" shots/ui.xml 2>/dev/null; then
-  echo "The website did not open inside the app (still on the loading or offline screen)."
-  site_failed=1
+  site_failed="The website did not open inside the app. Screen text: $(grep -oE 'text="[^"]+"' shots/ui.xml | paste -sd ' ' - | cut -c1-300)"
 fi
 
 adb shell input keyevent KEYCODE_HOME
@@ -33,16 +39,13 @@ adb exec-out screencap -p > shots/3-reopened.png
 
 adb logcat -d > shots/logcat.txt
 if grep -E "FATAL EXCEPTION|ANR in $pkg" -A 12 shots/logcat.txt; then
-  echo "The app crashed or stopped responding."
-  exit 1
+  fail "The app crashed or stopped responding: $(grep -E "FATAL EXCEPTION" -A 4 shots/logcat.txt | paste -sd ' ' - | cut -c1-600)"
 fi
 if ! adb shell pidof "$pkg" > /dev/null; then
-  echo "The app is not running after launch."
-  exit 1
+  fail "The app is not running after launch."
 fi
 adb shell dumpsys activity activities | grep -E "ResumedActivity|mResumedActivity" | grep -q "$pkg/.MainActivity" || {
-  echo "The app's screen is not in front."
-  exit 1
+  fail "The app's screen is not in front."
 }
-if [ -n "${site_failed:-}" ]; then exit 1; fi
+if [ -n "${site_failed:-}" ]; then fail "$site_failed"; fi
 echo "Launch test passed."
