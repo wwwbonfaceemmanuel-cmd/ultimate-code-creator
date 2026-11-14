@@ -6,6 +6,7 @@ import { monaco } from '../lib/monaco';
 import { api, errorMessage } from '../api';
 import { useStatus, useToast } from '../context';
 import { languageLabel, monacoLanguage } from '../lib/languages';
+import { saveBlob } from '../lib/download';
 import { cleanPath } from '../lib/paths';
 import { buildPreview, findEntry } from '../lib/preview';
 import FileExplorer from '../components/FileExplorer';
@@ -146,14 +147,8 @@ export default function Workspace() {
     setBusy('export');
     try {
       const blob = await api.exportZip(project.name, files);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${project.name.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'project'}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const name = `${project.name.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'project'}.zip`;
+      await saveBlob(blob, name);
     } catch (e) {
       toast('error', errorMessage(e));
     } finally {
