@@ -308,3 +308,78 @@ async def test_supabase_usage_reads_and_records():
     assert seen[0][1]["user_id"] == f"eq.{UID_A}" and seen[0][1]["created_at"].startswith("gte.")
     await usage.record(User(UID_A), "generate")
     assert seen[1][0] == "POST" and seen[1][2] == {"user_id": UID_A, "kind": "generate"}
+
+
+# ---------------------------------------------------------------------------
+# Tolerant file-list parsing and the automatic retry
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"files": [{"path": "index.html", "content": "<p>hi</p>"}, {"path": "css/a.css", "content": "b{}"}]},
+        {"files": {"index.html": "<p>hi</p>", "css/a.css": "b{}"}},
+        {"files": [{"filename": "index.html", "code": "<p>hi</p>"}, {"name": "css/a.css", "contents": "b{}"}]},
+        {"files": [{"index.html": "<p>hi</p>"}, {"css/a.css": "b{}"}]},
+        {"files": [json.dumps({"path": "index.html", "content": "<p>hi</p>"}), json.dumps({"path": "css/a.css", "content": "b{}"})]},
+        {"files": ["index.html", "css/a.css"], "index.html": "<p>hi</p>", "css/a.css": "b{}"},
+        {"files": ["index.html", "css/a.css"], "contents": {"index.html": "<p>hi</p>", "css/a.css": "b{}"}},
+        {"files": {"a": {"path": "index.html", "content": "<p>hi</p>"}, "b": {"path": "css/a.css", "content": "b{}"}}},
+    ],
+)
+def test_file_list_shapes_models_produce_are_accepted(payload):
+    _, _, files = ai_service.parse_generation(json.dumps(payload))
+    assert {f.path: f.content for f in files} == {"index.html": "<p>hi</p>", "css/a.css": "b{}"}
+
+
+@pytest.mark.parametrize("payload", [{"files": ["index.html", "style.css"]}, {"files": [1, 2]}, {"files": [{"content": "x"}]}, {"files": "index.html"}, {"files": []}])
+def test_unusable_file_lists_give_a_clear_retryable_error(payload):
+    with pytest.raises(AIError) as e:
+        ai_service.parse_generation(json.dumps(payload))
+    assert e.value.retryable and "string indices" not in e.value.message
+
+
+def scripted_client(tmp_path, replies):
+    c = make_client(tmp_path, ai_text="unused")
+    prompts = []
+
+    class Scripted:
+        async def complete(self, system, user):
+            prompts.append(user)
+            return replies[len(prompts) - 1]
+
+    c.app.dependency_overrides[ai_dep] = lambda: Scripted()
+    return c, prompts
+
+
+def test_generate_retries_once_when_the_format_is_unusable(tmp_path):
+    c, prompts = scripted_client(tmp_path, [json.dumps({"files": ["index.html"]}), GEN_REPLY])
+    r = c.post("/api/ai/generate", json=GEN_BODY)
+    assert r.status_code == 201 and len(prompts) == 2
+    assert "could not be used" in prompts[1] and "without their contents" in prompts[1]
+    assert c.get("/api/ai/usage").json()["hour"]["used"] == 1
+
+
+def test_generate_gives_up_after_one_retry(tmp_path):
+    c, prompts = scripted_client(tmp_path, ["nope", "still nope", GEN_REPLY])
+    r = c.post("/api/ai/generate", json=GEN_BODY)
+    assert r.status_code == 502 and len(prompts) == 2 and c.get("/api/projects").json() == []
+
+
+def test_edit_retries_once(tmp_path):
+    good = json.dumps({"summary": "ok", "files": [{"path": "a.js", "content": "2"}]})
+    c, prompts = scripted_client(tmp_path, ["not json", good])
+    r = c.post("/api/ai/edit", json={"instruction": "do it", "language": "javascript", "files": [{"path": "a.js", "content": "1"}]})
+    assert r.status_code == 200 and r.json()["changed"] == ["a.js"] and len(prompts) == 2
+
+
+async def test_provider_errors_are_not_retried():
+    calls = []
+
+    class Failing:
+        async def complete(self, system, user):
+            calls.append(1)
+            raise AIError(502, "The AI provider is rate-limiting or out of quota.")
+
+    with pytest.raises(AIError):
+        await ai_service.complete_and_parse(Failing(), "s", "u", ai_service.parse_generation)
+    assert len(calls) == 1
