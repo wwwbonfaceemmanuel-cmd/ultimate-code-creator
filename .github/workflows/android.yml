@@ -81,12 +81,21 @@ jobs:
       - name: Install, open and check the app
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: 34
           arch: x86_64
           target: google_apis
           disable-animations: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: bash android/launch-test.sh apk-out/ai-code-studio.apk
+      - name: Read the screenshots
+        if: always()
+        run: |
+          sudo apt-get install -y -qq tesseract-ocr imagemagick > /dev/null 2>&1 || exit 0
+          for f in shots/*.png; do
+            convert "$f" -negate -colorspace Gray -resize 200% /tmp/ocr.png 2>/dev/null || cp "$f" /tmp/ocr.png
+            text=$(tesseract /tmp/ocr.png - 2>/dev/null | tr -s '[:space:]' ' ' | cut -c1-400)
+            echo "::notice title=Seen in $(basename "$f")::${text:-no text read}"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
