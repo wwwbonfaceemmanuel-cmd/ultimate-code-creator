@@ -28,6 +28,13 @@ SUMMARY_FIELDS = ("id", "name", "description", "language", "file_count", "create
 _ID_RE = re.compile(r"^[0-9a-fA-F-]{36}$")
 
 
+def owner_filter(owner: str | None) -> str:
+    """PostgREST filter value for an owner column (None = rows with no owner)."""
+    if owner is None:
+        return "is.null"
+    return f"eq.{_check_id(owner)}"
+
+
 def _check_id(project_id: str) -> str:
     if not _ID_RE.match(project_id):
         raise NotFound()
@@ -51,42 +58,51 @@ class LocalStore:
         tmp.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
         tmp.replace(self._path(record["id"]))
 
-    async def list(self) -> list[dict]:
+    async def list(self, owner: str | None) -> list[dict]:
         items = []
         if self._dir.exists():
             for p in self._dir.glob("*.json"):
                 try:
                     rec = json.loads(p.read_text(encoding="utf-8"))
-                    items.append({k: rec.get(k) for k in SUMMARY_FIELDS})
                 except (ValueError, OSError):
                     continue
+                if rec.get("owner_id") == owner:
+                    items.append({k: rec.get(k) for k in SUMMARY_FIELDS})
         return sorted(items, key=lambda r: r["updated_at"] or "", reverse=True)
 
-    async def get(self, project_id: str) -> dict:
+    async def get(self, project_id: str, owner: str | None) -> dict:
         p = self._path(project_id)
         if not p.exists():
             raise NotFound()
-        return json.loads(p.read_text(encoding="utf-8"))
+        record = json.loads(p.read_text(encoding="utf-8"))
+        if record.get("owner_id") != owner:
+            raise NotFound()
+        return record
 
-    async def create(self, data: dict) -> dict:
+    async def create(self, data: dict, owner: str | None) -> dict:
         now = _now()
-        record = {**data, "id": str(uuid.uuid4()), "file_count": len(data["files"]), "created_at": now, "updated_at": now}
+        record = {
+            **data,
+            "id": str(uuid.uuid4()),
+            "owner_id": owner,
+            "file_count": len(data["files"]),
+            "created_at": now,
+            "updated_at": now,
+        }
         self._write(record)
         return record
 
-    async def update(self, project_id: str, changes: dict) -> dict:
-        record = await self.get(project_id)
+    async def update(self, project_id: str, changes: dict, owner: str | None) -> dict:
+        record = await self.get(project_id, owner)
         record.update(changes)
         record["file_count"] = len(record["files"])
         record["updated_at"] = _now()
         self._write(record)
         return record
 
-    async def delete(self, project_id: str) -> None:
-        p = self._path(project_id)
-        if not p.exists():
-            raise NotFound()
-        p.unlink()
+    async def delete(self, project_id: str, owner: str | None) -> None:
+        await self.get(project_id, owner)
+        self._path(project_id).unlink()
 
     async def check(self) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
@@ -121,31 +137,40 @@ class SupabaseStore:
             raise StoreError(f"Supabase returned HTTP {resp.status_code}.{hint}")
         return resp.json() if resp.content else None
 
-    async def list(self) -> list[dict]:
-        return await self._request("GET", {"select": ",".join(SUMMARY_FIELDS), "order": "updated_at.desc"})
+    # Every query is scoped to the owner: the service-role key bypasses Row
+    # Level Security, so this filter is what keeps users' projects separate.
+    @staticmethod
+    def _scope(owner: str | None, project_id: str | None = None) -> dict:
+        params = {"owner_id": owner_filter(owner)}
+        if project_id is not None:
+            params["id"] = f"eq.{_check_id(project_id)}"
+        return params
 
-    async def get(self, project_id: str) -> dict:
-        rows = await self._request("GET", {"id": f"eq.{_check_id(project_id)}", "select": "*"})
+    async def list(self, owner: str | None) -> list[dict]:
+        return await self._request("GET", {**self._scope(owner), "select": ",".join(SUMMARY_FIELDS), "order": "updated_at.desc"})
+
+    async def get(self, project_id: str, owner: str | None) -> dict:
+        rows = await self._request("GET", {**self._scope(owner, project_id), "select": "*"})
         if not rows:
             raise NotFound()
         return rows[0]
 
-    async def create(self, data: dict) -> dict:
-        body = {**data, "file_count": len(data["files"])}
+    async def create(self, data: dict, owner: str | None) -> dict:
+        body = {**data, "owner_id": owner, "file_count": len(data["files"])}
         rows = await self._request("POST", body=body, representation=True)
         return rows[0]
 
-    async def update(self, project_id: str, changes: dict) -> dict:
+    async def update(self, project_id: str, changes: dict, owner: str | None) -> dict:
         body = {**changes, "updated_at": _now()}
         if "files" in changes:
             body["file_count"] = len(changes["files"])
-        rows = await self._request("PATCH", {"id": f"eq.{_check_id(project_id)}"}, body, representation=True)
+        rows = await self._request("PATCH", self._scope(owner, project_id), body, representation=True)
         if not rows:
             raise NotFound()
         return rows[0]
 
-    async def delete(self, project_id: str) -> None:
-        rows = await self._request("DELETE", {"id": f"eq.{_check_id(project_id)}"}, representation=True)
+    async def delete(self, project_id: str, owner: str | None) -> None:
+        rows = await self._request("DELETE", self._scope(owner, project_id), representation=True)
         if not rows:
             raise NotFound()
 

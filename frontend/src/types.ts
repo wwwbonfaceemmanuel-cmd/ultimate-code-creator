@@ -41,6 +41,13 @@ export interface EditResult {
 
 export interface SystemStatus {
   ai: { configured: boolean; model: string | null; missing: string[] };
+  auth: { enabled: boolean; required: boolean; supabase_url: string | null; supabase_anon_key: string | null };
+  limits: { per_hour: number; per_day: number };
   storage: { kind: 'local' | 'supabase'; ok: boolean; error: string | null };
   languages: { id: string; label: string }[];
+}
+
+export interface Usage {
+  hour: { used: number; limit: number };
+  day: { used: number; limit: number };
 }

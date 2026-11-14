@@ -5,6 +5,7 @@ import { api, errorMessage } from '../api';
 import { useStatus, useToast } from '../context';
 import { LANGUAGES } from '../lib/languages';
 import AiNotice from '../components/AiNotice';
+import type { Usage } from '../types';
 
 const MIN_PROMPT = 10;
 
@@ -19,6 +20,7 @@ export default function NewProject() {
   const [busy, setBusy] = useState<'generate' | 'empty' | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<Usage | null>(null);
 
   useEffect(() => {
     if (busy !== 'generate') return;
@@ -28,6 +30,21 @@ export default function NewProject() {
   }, [busy]);
 
   const aiReady = !!status?.ai.configured;
+
+  // Show how much of the AI allowance is left (refreshed after each attempt).
+  useEffect(() => {
+    if (!aiReady || busy) return;
+    let cancelled = false;
+    api.usage().then((u) => !cancelled && setUsage(u)).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [aiReady, busy]);
+
+  const left = (w: { used: number; limit: number }) => (w.limit > 0 ? Math.max(0, w.limit - w.used) : null);
+  const hourLeft = usage ? left(usage.hour) : null;
+  const dayLeft = usage ? left(usage.day) : null;
+  const outOfRequests = hourLeft === 0 || dayLeft === 0;
   const promptOk = prompt.trim().length >= MIN_PROMPT;
 
   const generate = async (e: FormEvent) => {
@@ -128,13 +145,18 @@ export default function NewProject() {
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={!aiReady || !promptOk || busy !== null}
-            title={!aiReady ? 'Connect an AI model first' : !promptOk ? `Describe the project in at least ${MIN_PROMPT} characters` : ''}
+            disabled={!aiReady || !promptOk || outOfRequests || busy !== null}
+            title={!aiReady ? 'Connect an AI model first' : outOfRequests ? 'You have no AI requests left for now' : !promptOk ? `Describe the project in at least ${MIN_PROMPT} characters` : ''}
           >
             {busy === 'generate' ? <span className="spinner" /> : <Sparkles size={16} />} Generate project
           </button>
         </div>
         {aiReady && !promptOk && prompt.length > 0 && <p className="muted small right">Add a little more detail to enable generation.</p>}
+        {aiReady && (hourLeft !== null || dayLeft !== null) && (
+          <p className={`small right ${outOfRequests ? 'field-error' : 'muted'}`}>
+            AI requests left: {[hourLeft !== null ? `${hourLeft} this hour` : '', dayLeft !== null ? `${dayLeft} today` : ''].filter(Boolean).join(', ')}
+          </p>
+        )}
       </form>
     </div>
   );

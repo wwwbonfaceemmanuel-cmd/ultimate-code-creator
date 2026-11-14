@@ -2,12 +2,14 @@ import io
 import re
 import zipfile
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 
+from ..deps import current_user
 from ..schemas import ExportRequest, ValidateRequest, ValidateResponse
 from ..services.validator import NOTE, validate_files
 
-router = APIRouter(prefix="/api", tags=["tools"])
+# Signed-in users only, so the server is not an open utility for strangers.
+router = APIRouter(prefix="/api", tags=["tools"], dependencies=[Depends(current_user)])
 
 
 @router.post("/validate", response_model=ValidateResponse)

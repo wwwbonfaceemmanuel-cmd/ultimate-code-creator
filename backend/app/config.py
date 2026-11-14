@@ -16,6 +16,14 @@ class Settings(BaseSettings):
 
     supabase_url: str = ""
     supabase_service_role_key: str = ""
+    supabase_anon_key: str = ""
+
+    # When true, the API refuses to serve data unless sign-in is configured.
+    require_auth: bool = False
+
+    # AI requests allowed per user. 0 turns a limit off.
+    ai_limit_per_hour: int = 20
+    ai_limit_per_day: int = 100
 
     local_data_dir: str = "./data"
     cors_origins: str = "http://localhost:5173"
@@ -28,6 +36,10 @@ class Settings(BaseSettings):
     @property
     def supabase_configured(self) -> bool:
         return bool(self.supabase_url.strip() and self.supabase_service_role_key.strip())
+
+    @property
+    def auth_enabled(self) -> bool:
+        return bool(self.supabase_url.strip() and self.supabase_anon_key.strip())
 
     @property
     def cors_origin_list(self) -> list[str]:

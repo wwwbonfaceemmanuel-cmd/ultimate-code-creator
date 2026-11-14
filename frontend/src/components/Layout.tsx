@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Code2, FolderKanban, LayoutDashboard, Settings as SettingsIcon, Sparkles } from 'lucide-react';
+import { Code2, FolderKanban, LayoutDashboard, LogOut, Settings as SettingsIcon, Sparkles } from 'lucide-react';
+import { useAuth } from '../auth';
 import { useStatus } from '../context';
 
 const NAV = [
@@ -12,6 +13,7 @@ const NAV = [
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { status, loading, error } = useStatus();
+  const auth = useAuth();
   const aiLabel = loading && !status ? 'Checking…' : error ? 'Server offline' : status?.ai.configured ? 'AI connected' : 'AI not connected';
   const aiClass = error ? 'bad' : status?.ai.configured ? 'ok' : 'warn';
 
@@ -30,6 +32,12 @@ export default function Layout({ children }: { children: ReactNode }) {
             </NavLink>
           ))}
         </nav>
+        {auth.enabled && auth.email && (
+          <div className="account">
+            <span className="account-email" title={auth.email}>{auth.email}</span>
+            <button className="icon-btn" onClick={() => void auth.signOut()} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
+          </div>
+        )}
         <NavLink to="/settings" className="status-pill" title="Open connection settings">
           <span className={`dot ${aiClass}`} />
           <span>{aiLabel}</span>

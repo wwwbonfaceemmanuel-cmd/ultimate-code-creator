@@ -12,6 +12,7 @@ COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app ./app
 COPY --from=frontend /app/frontend/dist /app/frontend/dist
-ENV FRONTEND_DIST=/app/frontend/dist LOCAL_DATA_DIR=/data CORS_ORIGINS=
+# REQUIRE_AUTH: a deployed server stays locked until Supabase sign-in is configured.
+ENV FRONTEND_DIST=/app/frontend/dist LOCAL_DATA_DIR=/data CORS_ORIGINS= REQUIRE_AUTH=true
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
