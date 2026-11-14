@@ -1,4 +1,5 @@
-import { CheckCircle2, RefreshCw, XCircle } from 'lucide-react';
+import { CheckCircle2, LogOut, RefreshCw, XCircle } from 'lucide-react';
+import { useAuth } from '../auth';
 import { useStatus } from '../context';
 
 function State({ ok, children }: { ok: boolean; children: string }) {
@@ -11,6 +12,7 @@ function State({ ok, children }: { ok: boolean; children: string }) {
 
 export default function Settings() {
   const { status, loading, error, refresh } = useStatus();
+  const auth = useAuth();
 
   return (
     <div className="page narrow">
@@ -30,11 +32,39 @@ export default function Settings() {
         <>
           <section className="card stack">
             <div className="row between wrap">
+              <h2>Account</h2>
+              <State ok={status.auth.enabled}>{status.auth.enabled ? 'Sign-in on' : 'Sign-in off'}</State>
+            </div>
+            {status.auth.enabled ? (
+              <div className="row between wrap">
+                <p className="muted">Signed in as <strong>{auth.email}</strong>. Your projects are visible only to this account.</p>
+                <button className="btn" onClick={() => void auth.signOut()}><LogOut size={16} /> Sign out</button>
+              </div>
+            ) : (
+              <>
+                <p className="muted">
+                  There are no accounts on this server: everyone who can open it shares the same projects. Keep it on your own computer until sign-in is on.
+                </p>
+                <ol className="steps">
+                  <li>Set <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> in <code>backend/.env</code>.</li>
+                  <li>Restart the backend, then press “Check again”.</li>
+                </ol>
+              </>
+            )}
+          </section>
+
+          <section className="card stack">
+            <div className="row between wrap">
               <h2>AI model</h2>
               <State ok={status.ai.configured}>{status.ai.configured ? 'Connected' : 'Not connected'}</State>
             </div>
             {status.ai.configured ? (
-              <p className="muted">Requests are sent from the server to model <code>{status.ai.model}</code>.</p>
+              <p className="muted">
+                Requests are sent from the server to model <code>{status.ai.model}</code>.{' '}
+                {status.limits.per_hour > 0 || status.limits.per_day > 0
+                  ? `Each account may make ${[status.limits.per_hour > 0 ? `${status.limits.per_hour} AI requests an hour` : '', status.limits.per_day > 0 ? `${status.limits.per_day} a day` : ''].filter(Boolean).join(' and ')}.`
+                  : 'There is no limit on AI requests.'}
+              </p>
             ) : (
               <>
                 <p className="muted">

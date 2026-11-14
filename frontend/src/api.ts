@@ -1,4 +1,4 @@
-import type { EditResult, Project, ProjectFile, ProjectSummary, SystemStatus, ValidateResult } from './types';
+import type { EditResult, Project, ProjectFile, ProjectSummary, SystemStatus, Usage, ValidateResult } from './types';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -20,18 +20,33 @@ async function errorFrom(res: Response): Promise<ApiError> {
   return new ApiError(res.status, message);
 }
 
+// Set by the auth provider once sign-in is ready. The access token is sent
+// with every request; a 401 means the session is no longer valid.
+interface AuthHooks {
+  getToken: () => Promise<string | null>;
+  onUnauthorized: () => void;
+}
+let auth: AuthHooks | null = null;
+export function setApiAuth(hooks: AuthHooks | null) {
+  auth = hooks;
+}
+
 async function send(path: string, method = 'GET', body?: unknown): Promise<Response> {
   let res: Response;
   try {
-    res = await fetch(`/api${path}`, {
-      method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    const headers: Record<string, string> = {};
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const token = auth ? await auth.getToken() : null;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    res = await fetch(`/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch {
     throw new ApiError(0, 'Could not reach the server. Check your connection and that the backend is running.');
   }
-  if (!res.ok) throw await errorFrom(res);
+  if (!res.ok) {
+    const error = await errorFrom(res);
+    if (res.status === 401) auth?.onUnauthorized();
+    throw error;
+  }
   return res;
 }
 
@@ -53,6 +68,7 @@ export const api = {
   generate: (data: { prompt: string; language: string; name: string }) => json<Project>('/ai/generate', 'POST', data),
   edit: (data: { instruction: string; language: string; files: ProjectFile[] }) =>
     json<EditResult>('/ai/edit', 'POST', data),
+  usage: () => json<Usage>('/ai/usage'),
   validate: (files: ProjectFile[]) => json<ValidateResult>('/validate', 'POST', { files }),
   exportZip: async (name: string, files: ProjectFile[]) => (await send('/export', 'POST', { name, files })).blob(),
 };

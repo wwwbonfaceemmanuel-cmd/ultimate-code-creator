@@ -1,0 +1,27 @@
+# Render blueprint: New + > Blueprint > pick this repository.
+# Render asks for each value marked "sync: false" when you create the service.
+services:
+  - type: web
+    name: ai-code-studio
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        sync: false
+      - key: AI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: REQUIRE_AUTH
+        value: "true"
+      - key: AI_LIMIT_PER_HOUR
+        value: "20"
+      - key: AI_LIMIT_PER_DAY
+        value: "100"

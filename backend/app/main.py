@@ -8,6 +8,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from .config import get_settings
 from .routers import ai, projects, status, tools
 from .services.ai import AIError
+from .services.auth import AuthError
+from .services.usage import LimitExceeded
 from .services.store import NotFound, StoreError
 
 
@@ -26,6 +28,14 @@ def create_app() -> FastAPI:
     @app.exception_handler(AIError)
     async def _ai_error(_: Request, exc: AIError):
         return JSONResponse({"detail": exc.message}, status_code=exc.status_code)
+
+    @app.exception_handler(AuthError)
+    async def _auth_error(_: Request, exc: AuthError):
+        return JSONResponse({"detail": exc.message}, status_code=exc.status_code)
+
+    @app.exception_handler(LimitExceeded)
+    async def _limit(_: Request, exc: LimitExceeded):
+        return JSONResponse({"detail": exc.message}, status_code=429)
 
     @app.exception_handler(StoreError)
     async def _store_error(_: Request, exc: StoreError):

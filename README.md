@@ -4,7 +4,7 @@ Describe the software you want in ordinary language; a connected AI model writes
 
 - **Frontend:** React + TypeScript (Vite), Monaco Editor — `frontend/`
 - **Backend:** Python FastAPI — `backend/`
-- **Database:** Supabase (Postgres) — `supabase/schema.sql`
+- **Accounts and database:** Supabase (Auth + Postgres) — `supabase/schema.sql`
 
 ## What works today
 
@@ -14,6 +14,8 @@ Describe the software you want in ordinary language; a connected AI model writes
 | Prompt screen with language selector (HTML, CSS, JavaScript, TypeScript, Python, Java, Kotlin, PHP, C++, C#, Dart) | Working |
 | AI project generation and follow-up AI edits (with undo) | Working **once you connect a model** — see below. Without one, the app says so and the buttons are disabled; nothing is faked. |
 | Workspace: file explorer, Monaco editor with syntax highlighting, new/rename/delete file | Working |
+| User accounts: sign up, sign in, sign out, password reset; each account sees only its own projects | Working once Supabase is connected (see below). Without it the app runs in single-user local mode with no login. |
+| AI usage limits per account (default 20 an hour, 100 a day) | Working |
 | Save and reopen projects | Working (local files by default, Supabase when configured) |
 | Live preview | Working for projects with an HTML page (sandboxed iframe; local CSS/JS files are inlined) |
 | Download as ZIP | Working |
@@ -22,9 +24,13 @@ Describe the software you want in ordinary language; a connected AI model writes
 
 ### Not built yet
 
-- **User accounts.** There is no login. Anyone who can reach the server can see every project and spend your AI credit, so do not put it on the public internet without adding authentication (Supabase Auth is the intended route; the `owner_id` column is reserved for it) or putting it behind a private network / access proxy.
 - Running non-web projects (Python, Java, …) in the browser. Download the ZIP and run them locally.
-- Streaming AI output, project version history, rate limiting.
+- Streaming AI output, project version history, sharing a project between accounts.
+- Sign-in with Google/GitHub (only email and password).
+
+### How it has been tested
+
+Automated backend tests, plus a browser run of the whole flow (sign up, sign in, wrong password, private projects, limits, password reset, generate, edit, preview, save, ZIP) against **stand-ins** for Supabase and the AI provider. It has not yet been run against a real Supabase project or a real AI provider, so do one full pass yourself after connecting them.
 
 ## Run it locally
 
@@ -62,33 +68,67 @@ Open **Settings** in the app and press **Check again** to confirm. The key stays
 
 To use a provider with a different API shape, add a client class in `backend/app/services/ai.py` with the same `complete(system, user)` coroutine and return it from `get_ai_client`.
 
-## Connect Supabase
+## Connect Supabase (sign-in, storage, usage limits)
 
-Without Supabase, projects are stored as JSON files in `backend/data/` — fine for local use, but most hosts wipe the disk on redeploy.
+Without Supabase the app runs in **single-user local mode**: no login, projects stored as JSON files in `backend/data/`. That is fine on your own computer and unsafe on a public server.
 
-1. Create a Supabase project.
-2. Run `supabase/schema.sql` in the SQL editor.
-3. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API) in `backend/.env` and restart.
+1. Create a project at supabase.com (the free plan is enough).
+2. Open **SQL Editor**, paste the contents of `supabase/schema.sql`, and run it. It creates the `projects` and `ai_usage` tables and is safe to run again after updates.
+3. Open **Project Settings → API** and copy three values into `backend/.env` (or your host's environment settings):
 
-The service-role key is used only by the backend. Row Level Security is enabled with no policies, so the public anon key can read nothing.
+   | Variable | Value in Supabase | Secret? |
+   | --- | --- | --- |
+   | `SUPABASE_URL` | Project URL | No |
+   | `SUPABASE_ANON_KEY` | `anon` / publishable key | No — it is sent to the browser for sign-in |
+   | `SUPABASE_SERVICE_ROLE_KEY` | `service_role` / secret key | **Yes** — server only |
+
+4. Open **Authentication → URL Configuration** and set **Site URL** to the address people use to open the app (for example `https://your-app.onrender.com`, or `http://localhost:5173` while developing). The links in confirmation and password-reset emails point there.
+5. Restart the backend. The app now shows a sign-in screen.
+
+Notes:
+
+- By default Supabase emails each new user a confirmation link before they can sign in, and its built-in email sender is limited to a few messages an hour. For real use, set up your own SMTP sender under **Authentication → Emails**, or turn confirmation off under **Authentication → Sign In / Providers → Email**.
+- To stop strangers registering, turn off **Allow new users to sign up** in the same place and invite users from the Supabase dashboard.
+- How it is secured: the browser signs in with Supabase and sends its access token with every request; the backend asks Supabase who the token belongs to and filters every database query by that user. Row Level Security is on with no policies, so the public key cannot read either table directly.
+- Projects created in local mode have no owner and are not shown to signed-in users.
+
+### AI usage limits
+
+Each account may make `AI_LIMIT_PER_HOUR` (default 20) and `AI_LIMIT_PER_DAY` (default 100) AI requests; generating and editing both count. Set either to `0` to remove that limit. With Supabase connected the counts are stored in `ai_usage`; in local mode they are kept in memory and reset when the server restarts.
+
+### `REQUIRE_AUTH`
+
+Set `REQUIRE_AUTH=true` on any server other people can reach (the Docker image does this already). If sign-in is not configured, the server then stays locked and shows setup steps instead of running open to everyone.
 
 ## Deploy
 
-**One service (simplest).** The backend serves the built frontend when `frontend/dist` exists. The included `Dockerfile` does this:
+The backend serves the built frontend, so the whole app is **one service**. The `Dockerfile` builds it, and GitHub Actions builds and starts that image on every change to check it works.
+
+### Render (step by step)
+
+1. Do the Supabase steps above and have your AI key ready.
+2. On render.com choose **New → Blueprint** and pick this repository. Render reads `render.yaml`.
+3. Enter the values it asks for: `AI_API_KEY`, `AI_MODEL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. Change `AI_BASE_URL` if you are not using OpenAI.
+4. Deploy. When it is live, copy the service address into Supabase **Authentication → URL Configuration → Site URL**.
+5. Open the address, create your account, and generate a small project to confirm everything is connected.
+
+The free Render plan sleeps after a period without visitors, so the first visit afterwards is slow. `render.yaml` has not been run on Render from this repository yet; if Render rejects a field, create a **Web Service** from the repository instead (runtime: Docker) and add the same variables by hand.
+
+### Any other container host (Railway, Fly.io, Cloud Run, a VPS)
 
 ```bash
 docker build -t ai-code-studio .
 docker run -p 8000:8000 \
   -e AI_API_KEY=... -e AI_MODEL=... -e AI_BASE_URL=... \
-  -e SUPABASE_URL=... -e SUPABASE_SERVICE_ROLE_KEY=... \
+  -e SUPABASE_URL=... -e SUPABASE_ANON_KEY=... -e SUPABASE_SERVICE_ROLE_KEY=... \
   ai-code-studio
 ```
 
-This suits any container host (Render, Railway, Fly.io, Cloud Run…). Set the variables in the host's secret settings, not in the image. The server listens on `$PORT` if the host sets it.
+Set the variables in the host's secret settings, not in the image. The server listens on `$PORT` if the host sets it, and `/api/health` is the health check.
 
-**Two services.** Host `frontend/dist` on a static host and the backend separately. Configure the static host to forward `/api/*` to the backend (recommended), or serve the API on another origin and list the frontend origin in `CORS_ORIGINS`.
+### Frontend and backend on separate hosts
 
-Always use Supabase in production, and read the note about user accounts above first.
+Host `frontend/dist` on a static host and the backend elsewhere. Configure the static host to forward `/api/*` to the backend (recommended), or list the frontend's origin in `CORS_ORIGINS`.
 
 ## Tests and checks
 
@@ -107,24 +147,29 @@ backend/app/
   routers/           status, projects, ai (generate/edit), tools (validate/export)
   services/ai.py     AI client, prompts, response parsing
   services/store.py  Supabase and local-file project stores
+  services/auth.py   sign-in token verification
+  services/usage.py  per-user AI limits
   services/validator.py
 frontend/src/
-  pages/             Dashboard, NewProject, Projects, Workspace, Settings
+  pages/             Dashboard, NewProject, Projects, Workspace, Settings, Login
+  auth.tsx           sign-in state (Supabase Auth)
   components/        Layout, FileExplorer, Modal, ProjectCard, AiNotice
   lib/               Monaco setup, preview builder, helpers
   api.ts             typed API client
-supabase/schema.sql
+supabase/schema.sql  database tables
+render.yaml          Render deployment blueprint
 ```
 
 ## API
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/status` | AI and storage connection state (no secrets) |
+| GET | `/api/status` | Connection state and public sign-in settings (no secrets). The only endpoint that works without signing in. |
 | GET/POST | `/api/projects` | List / create |
 | GET/PUT/DELETE | `/api/projects/{id}` | Read / update / delete |
 | POST | `/api/ai/generate` | Generate a project from a prompt and save it |
 | POST | `/api/ai/edit` | Apply an instruction to a set of files |
+| GET | `/api/ai/usage` | AI requests used against the hourly and daily limits |
 | POST | `/api/validate` | Check files |
 | POST | `/api/export` | Build a ZIP |
 

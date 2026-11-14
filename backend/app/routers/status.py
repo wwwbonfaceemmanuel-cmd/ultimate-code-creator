@@ -31,6 +31,15 @@ async def status(settings: Settings = Depends(settings_dep), store=Depends(store
                 if not value.strip()
             ],
         },
+        # The anon key is designed to be public: it only lets the browser reach
+        # Supabase sign-in. The service-role key is never returned.
+        "auth": {
+            "enabled": settings.auth_enabled,
+            "required": settings.require_auth,
+            "supabase_url": settings.supabase_url.strip() if settings.auth_enabled else None,
+            "supabase_anon_key": settings.supabase_anon_key.strip() if settings.auth_enabled else None,
+        },
+        "limits": {"per_hour": settings.ai_limit_per_hour, "per_day": settings.ai_limit_per_day},
         "storage": {"kind": store.kind, "ok": storage_error is None, "error": storage_error},
         "languages": [{"id": k, "label": v} for k, v in LANGUAGES.items()],
     }
