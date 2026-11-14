@@ -1,28 +1,11 @@
-# Android / Gradle
-.gradle/
-build/
-app/build/
-local.properties
-.cxx/
-.externalNativeBuild/
-*.apk
-*.aab
-*.ap_
-*.dex
-
-# IDE
-.idea/
-*.iml
-captures/
-
-# Signing material and local secrets
-*.jks
-*.keystore
-keystore.properties
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
 .env
 .env.*
-
-# OS / editors
+!.env.example
+backend/data/
 .DS_Store
-Thumbs.db
-*.swp
