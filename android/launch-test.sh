@@ -16,6 +16,12 @@ adb exec-out screencap -p > shots/1-after-8s.png
 sleep 75
 adb exec-out screencap -p > shots/2-after-83s.png
 
+# Print the text on screen so the log shows what the user would see.
+adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1 || true
+echo "--- text on screen ---"
+adb shell cat /sdcard/ui.xml 2>/dev/null | grep -oE '(text|content-desc)="[^"]+"' | sort -u | head -40 || true
+echo "----------------------"
+
 adb shell input keyevent KEYCODE_HOME
 sleep 2
 adb shell am start -W -n "$pkg/.MainActivity"
